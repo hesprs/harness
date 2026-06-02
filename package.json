@@ -1,0 +1,12 @@
+{
+	"name": "blueprint-skills",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"fmt": "oxfmt",
+		"check": "oxfmt --check"
+	},
+	"devDependencies": {
+		"oxfmt": "^0.51.0"
+	}
+}
