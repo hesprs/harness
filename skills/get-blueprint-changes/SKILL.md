@@ -1,7 +1,6 @@
 ---
 name: get-blueprint-changes
 description: Inspect Git history and uncommitted changes to obtain delta in blueprint.
-disable-model-invocation: true
 ---
 
 0. If you already know commit hashes and what is changed, jump to step 3.

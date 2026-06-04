@@ -6,40 +6,28 @@ disable-model-invocation: true
 
 ## Core Mandate
 
-Every implementation based on a plan in `plan/` should go through the audit - implement - review workflow as follows. Maximize rigorousness and future maintainability.
+You will be responsible for the entire implementation of a specific plan. Every implementation based on a plan in `plan/` should go through the audit - implement - review workflow as follows. Maximize rigorousness and future maintainability.
 
 ## Delegation
 
-- Use the same Oracle agent session for audit and review.
-- Use other agents during implementation freely.
+- Use a single Orchestrator subagent for the core implementation.
+- All other tasks are handled by yourself.
 
 ## Sequential Workflow
 
 ### 1. Audit
 
-Without the reading the plan file. Your upfront task is to spin up an Oracle agent session with the prompt:
+Start a `audit-plan` session yourself about the plan.
 
-```markdown
-You will be responsible for the audit and review of the implementation of plan <path to plan file>. Now use `audit-plan` skill to start auditing the plan. When done, return a short confirmation.
-```
-
-Wait until Oracle finishes without reading the plan file.
-
-### 2. Explore
-
-Read the plan file and understand the mission by comprehending `## Context`, `## Current Implementation`, and `## Target Implementation` sections.
-
-Explore the codebase and read relevant files until you have enough context about the concrete implementation proposed. Making blind instructions ruins the implementation.
-
-### 3. Plan Delegation
+### 2. Plan Delegation
 
 Evaluate the optimal agent delegation strategy to achieve the goal, principles:
 
 - provide them with full context they need to complete the task via direct prompting, you must include:
-	- path to the canonical plan
-	- file scope of their tasks
-	- definitive and canonical goal to achieve
-	- when they finish, they should return clear summary of the task implementation detail they have done
+  - path to the canonical plan
+  - file scope of their tasks
+  - definitive and canonical goal to achieve
+  - when they finish, they should return clear summary of the task implementation detail they have done
 - each agent focus on one atomic task and needs minimal extra context other than what you provided
 - each agent's scope doesn't overlap
 - maximize speed by parallelizing agent execution
@@ -62,7 +50,7 @@ Then run repository commands (lint, type check, tests), iterate until they all p
 
 ### 6. Review
 
-Resume the same Oracle session as audit with the following prompt:
+Resume the same Oracle session with the following prompt:
 
 ```markdown
 The implementation of the plan has finished. Now review the implementation by using `review-changes` skill.

@@ -33,19 +33,19 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 
 ### 4. Sectional Design & Validation
 
-- After interview, present the design in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy).
+- After interview, present the design in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy). Do not present raw code or interface.
 - Scale section depth to complexity (a few sentences for straightforward parts, more detail for nuanced logic).
 - **Get explicit user approval after each section.** If the user requests changes, revise the section before proceeding.
 - Design Principles:
   - **YAGNI ruthlessly:** Strip unnecessary features.
   - **Isolation & Boundaries:** Break systems into smaller units with single responsibilities and well-defined interfaces. Each unit must be independently testable and understandable.
   - **Interface Stability:** Ensure consumers can understand what a unit does without reading internals.
+  - **Selective Testing:** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
 - Keep the evolving design entirely in-context. Do not write or commit spec files.
 
 ### 5. Plan Generation
 
 - Once the design is fully approved section-by-section, generate the implementation plan, you should formulate a plan for each sub-project.
-- Structure the plan as a sequence of bite-sized tasks (each ~2–5 minutes of work).
 - Format:
 
 ```md
@@ -79,6 +79,10 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 All file changes specified below are module exports and public class methods / properties, add private helpers or import utils freely. (include this sentence)
 
 ### Add `src/foo.ts`
+
+`export type APIResponse = { status: string };`
+
+- type definition for the API
 
 `export function ping(url: string): boolean;`
 
