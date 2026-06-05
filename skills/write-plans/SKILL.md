@@ -1,6 +1,7 @@
 ---
 name: write-plans
-description: Mandatory workflow to transform vague ideas into validated designs and stepped implementation plans. Use only when user instructs or other skill references.
+description: Mandatory workflow to transform vague ideas into validated designs and stepped implementation plans.
+condition: Only when user instructs or other skill references.
 ---
 
 ## Core Mandate
@@ -24,8 +25,11 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 ### 2. Scope Assessment & Decomposition
 
 - Evaluate scope immediately after initial context gathering.
-- If the request spans multiple independent subsystems, flag it and decompose into sub-projects. Define boundaries, dependencies, and build order.
-- Proceed with this workflow for only **one sub-project at a time**. Each sub-project gets its own design validation → plan cycle + the distinct plan Markdown saved in `plans/`.
+- If the request spans multiple independent subsystems, decompose into sub-projects. Define clear boundaries. If the request is huge but belongs to a single vertical slice, you should only make one project.
+- If the request contains small edits spanning multiple sites, isolate them into a standalone `chore` sub-project.
+- Ensure all your plans combined cover all changes proposed.
+- If you have more than one sub-project, present to user all your sub-projects, what they cover, order and you will proceed, and ask for approval. Then proceed. Only one plan proceed directly.
+- Execute this workflow for only **one sub-project at a time** for each sub-project. Each sub-project gets its own design validation → plan cycle + the distinct plan Markdown saved in `plans/`.
 
 ### 3. Clarifying Dialogue
 
@@ -55,7 +59,7 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 
 **Source**: (what mandates the change, e.g., change in blueprint, a bug, user's requirement)
 
-(list commits hashes, touched blueprint documents, and a detailed synthesis what change is proposed by it if source is blueprint)
+(list touched blueprint documents and a detailed synthesis what change is proposed by it if source is blueprint)
 (elaborate repro and root cause if source is a bug)
 (make your context reasonable for other sources)
 
@@ -72,7 +76,7 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 (**you MUST inspect source files and point to specific file paths and what to change in detail**)
 (for adding a new file, you must list the proposed exports in this file)
 (for modifying a file, if the modification is huge, you must list the proposed final state of the file's export interface; if only small changes, list changed exports)
-(explicitly list files to delete)
+(explicitly list files to delete or move)
 (if proposed change includes classes, you must list all public methods / properties into interfaces)
 (Example:)
 

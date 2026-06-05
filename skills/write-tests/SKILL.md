@@ -1,6 +1,7 @@
 ---
 name: write-tests
-description: Defines test standards. Must use this skill before writing tests.
+description: Defines test standards.
+condition: Before writing test code.
 ---
 
 # Write tests

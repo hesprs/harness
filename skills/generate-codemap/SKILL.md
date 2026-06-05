@@ -1,6 +1,7 @@
 ---
 name: codemap
 description: Generate comprehensive hierarchical codemaps.
+condition: Only when user instructs or other skill references.
 disable-model-invocation: true
 ---
 

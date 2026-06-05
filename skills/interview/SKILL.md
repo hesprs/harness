@@ -1,6 +1,7 @@
 ---
 name: interview
-description: Clarify user intents by asking questions. Use only when user instructs or other skill references.
+description: Clarify user intents by asking questions.
+condition: Only when user instructs or other skill references.
 ---
 
 - Deep dive into the implementation of the described feature / refactor, discover every un-described decision that makes difference. Ask the user for clarification.

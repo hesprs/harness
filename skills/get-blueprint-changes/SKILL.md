@@ -1,9 +1,10 @@
 ---
 name: get-blueprint-changes
 description: Inspect Git history and uncommitted changes to obtain delta in blueprint.
+condition: Only when user instructs or other skill references.
+disable-model-invocation: true
 ---
 
-0. If you already know commit hashes and what is changed, jump to step 3.
 1. List Git commit history with commit message headlines using `git log --oneline -n 10`.
 2. Find all consecutive `blpt` commits starting from the most recent commit. The search should stop at the first non-`blpt` commit.
 3. Use `git diff <commit-hash>^!` on each of the qualified commits found.

@@ -1,6 +1,7 @@
 ---
 name: implement-plan
 description: Standard workflow to implement a plan.
+condition: Only when user instructs or other skill references.
 disable-model-invocation: true
 ---
 
@@ -19,43 +20,14 @@ You will be responsible for the entire implementation of a specific plan. Every 
 
 Start a `audit-plan` session yourself about the plan.
 
-### 2. Plan Delegation
+### 2. Implement
 
-Evaluate the optimal agent delegation strategy to achieve the goal, principles:
+Delegate an `orchestrator` agent, point it to the plan, wait if to finish.
 
-- provide them with full context they need to complete the task via direct prompting, you must include:
-  - path to the canonical plan
-  - file scope of their tasks
-  - definitive and canonical goal to achieve
-  - when they finish, they should return clear summary of the task implementation detail they have done
-- each agent focus on one atomic task and needs minimal extra context other than what you provided
-- each agent's scope doesn't overlap
-- maximize speed by parallelizing agent execution
-- resolve task dependency, never delegate agents to complete tasks whose dependency tasks are not done (e.g., always write tests after the implementation)
-- each agent has clear scope and target function to achieve.
+### 3. Review
 
-### 4. Implement
+Start a `review-implementation` skill session.
 
-Delegate agents in the correct order and wait them to finish.
+### 4. Report Back
 
-After all agents finish, read the files that they are supposed to change. If the implementation is not complete, does not comply with the canonical plan, or obviously flawed, resume the corresponding session and tell it to finish.
-
-### 5. Run Checks
-
-Then run repository commands (lint, type check, tests), iterate until they all pass:
-
-- Run format and lint autofix to fix format and auto-fixable lint issues.
-- Resume the corresponding agent session and ask it to fix type or logic errors if they are within a single agent's scope.
-- When the error crosses many scopes or an agent cannot fix an issue after multiple iterations, directly patch yourself.
-
-### 6. Review
-
-Resume the same Oracle session with the following prompt:
-
-```markdown
-The implementation of the plan has finished. Now review the implementation by using `review-changes` skill.
-```
-
-The Oracle may reject the change or pass with some comments. When it rejects, return to the iteration and finish the parts that the Oracle points out, until it passes. Do not parallelize review loop. Implementation - review flow should stay sequential.
-
-When the review passes, present a implementation summary to the user including the Oracle comment.
+Present a implementation summary to the user.

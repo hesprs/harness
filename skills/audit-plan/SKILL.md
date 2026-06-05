@@ -1,6 +1,7 @@
 ---
 name: audit-plan
-description: Review a plan before implementation. Use only when user instructs or other skill references.
+description: Review a plan before implementation.
+condition: Only when user instructs or other skill references.
 ---
 
 # Audit Plan
@@ -14,19 +15,18 @@ Review the plan against its purpose, and optimize the plan for maintainability.
 ### 1. Read & Understand Plan
 
 1. Read the whole plan file.
-2. If the `source` of this plan is from the blueprint, start a `get-blueprint-changes` skill session to understand what are changed.
-3. For other sources, read the description.
-4. Inspect real files in the codebase that are touched until you have enough context about the concrete implementation proposed. Making blind instructions ruins the plan.
+2. Inspect real files in the codebase that are touched until you have enough context about the concrete implementation proposed. Making blind instructions ruins the plan.
 
 ### 2. Validate Plan
 
 1. Reason about the plan with your context:
-   - Does the plan cover everything the source wants to do?
+   - Does the plan effectively achieves what the source want to do?
    - Are all changes and wiring needed included in the plan?
    - Any logic inconsistencies or flaws?
    - Is the plan likely to break other parts due to public interface shift?
-2. For huge logic flaw or incomplete plan, stop immediately and report back "Audit failed, huge flaw found: (explanation)".
-3. If small inconsistency, patch directly.
+   - Does the plan introduce unnecessary complexity?
+2. For huge logic flaw or incomplete plan, stop immediately and report back "Audit failed, huge flaw found: (explanation). Do I need to propose a fix?". If the user answers yes, start an `interview` skill session around a feasible implementation, then patch the plan.
+3. If small inconsistency that does not require architectural change, patch directly.
 
 ### 3. Review Plan
 

@@ -1,6 +1,7 @@
 ---
 name: query-docs
-description: Retrieve documentation for any library, framework, and components. Must use when deal with unfamiliar libraries or research a tool in depth.
+description: Retrieve documentation for any library, framework, and components.
+condition: When deal with unfamiliar libraries or research a tool in depth.
 ---
 
 # Context7
@@ -66,7 +67,6 @@ https://context7.com/api/v2/context?libraryId=/fastapi/fastapi&query=dependency+
 ## Tips
 
 - Use `type=txt` for more readable output
-- Use `jq` to filter and format JSON responses
 - Be specific with the `query` parameter to improve relevance ranking
 - If the first search result is not correct, check additional results in the array
 - URL-encode query parameters containing spaces (use `+` or `%20`)
