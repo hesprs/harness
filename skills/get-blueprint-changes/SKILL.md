@@ -1,7 +1,6 @@
 ---
 name: get-blueprint-changes
 description: Inspect Git history and uncommitted changes to obtain delta in blueprint.
-condition: Only when user instructs or other skill references.
 disable-model-invocation: true
 ---
 

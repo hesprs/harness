@@ -1,7 +1,6 @@
 ---
 name: implement-plan
 description: Standard workflow to implement a plan.
-condition: Only when user instructs or other skill references.
 disable-model-invocation: true
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: write-a-skill
 description: Create a new agent skill with proper structure, progressive disclosure, and bundled resources.
-condition: Only when user instructs or other skill references.
 disable-model-invocation: true
 ---
 

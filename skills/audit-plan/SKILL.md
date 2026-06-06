@@ -1,7 +1,6 @@
 ---
 name: audit-plan
-description: Review a plan before implementation.
-condition: Only when user instructs or other skill references.
+description: Review a plan before implementation. Use only when user instructs or other skill references.
 ---
 
 # Audit Plan

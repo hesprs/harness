@@ -1,7 +1,6 @@
 ---
 name: codemap
 description: Generate comprehensive hierarchical codemaps.
-condition: Only when user instructs or other skill references.
 disable-model-invocation: true
 ---
 
@@ -44,7 +43,7 @@ This creates:
 - `blueprint/codemap.json` - File and folder hashes for change detection
 - Empty `codemap.md` files in all relevant subdirectories
 
-4. **Delegate codemap writing to explore agents** - Spawn one explore agent per folder to read code and create or update its specific `codemap.md` file.
+4. **Delegate codemap writing to worker agents** - Spawn one worker per folder to read code and create or update its specific `codemap.md` file.
 
 ### Step 3: Detect Changes (If state already exists)
 
@@ -61,9 +60,9 @@ node <directory of this skill>/codemap.mjs changes \
    - Modified files
    - Affected folders
 
-3. **Only update affected codemaps** - Spawn one explore agent per affected folder to update its `codemap.md`. You must:
+3. **Only update affected codemaps** - Spawn one worker agent per affected folder to update its `codemap.md`. You must:
    - Not assign duplicated tasks to agents.
-   - Delegate agents in turns according to depth, from the deepest level to the atlas (atlas should be done by yourself), each turn only delegate explore agent in folders that have the same depth. Do not delegate all agents all at once.
+   - Delegate agents in turns according to depth, from the deepest level to the atlas (atlas should be done by yourself), each turn only delegate worker agent in folders that have the same depth. Do not delegate all agents all at once.
    - Prompt for each agent, copy paste as-is with the placeholder filled:
 
 ````markdown

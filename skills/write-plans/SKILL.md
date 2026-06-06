@@ -1,7 +1,6 @@
 ---
 name: write-plans
-description: Mandatory workflow to transform vague ideas into validated designs and stepped implementation plans.
-condition: Only when user instructs or other skill references.
+description: Mandatory workflow to transform vague ideas into validated designs and stepped implementation plans. Use only when user instructs or other skill references.
 ---
 
 ## Core Mandate

@@ -1,7 +1,6 @@
 ---
 name: diagnosing-bugs
-description: Disciplined diagnosis loop for hard bugs and performance regressions.
-condition: Only when user instructs or other skill references.
+description: Disciplined diagnosis loop for hard bugs and performance regressions. Use only when user instructs or other skill references.
 ---
 
 # Diagnosing Bugs

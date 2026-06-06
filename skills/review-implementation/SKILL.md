@@ -1,7 +1,6 @@
 ---
 name: review-implementation
-description: Review code changes made in a session.
-condition: Only when user instructs or other skill references.
+description: Review code changes made in a session. Use only when user instructs or other skill references.
 ---
 
 # Audit Plan

@@ -1,7 +1,6 @@
 ---
 name: write-tests
-description: Defines test standards.
-condition: Before writing test code.
+description: Defines test standards. Must use before writing any test code.
 ---
 
 # Write tests

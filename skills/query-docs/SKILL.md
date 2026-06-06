@@ -1,7 +1,6 @@
 ---
 name: query-docs
-description: Retrieve documentation for any library, framework, and components.
-condition: When deal with unfamiliar libraries or research a tool in depth.
+description: Retrieve documentation for any library, framework, and components. Use when deal with unfamiliar libraries or research a tool in depth.
 ---
 
 # Context7

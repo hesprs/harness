@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-HARNESS_DIR="$HOME/.omp/agent"
+HARNESS_DIR="$HOME/.config/opencode"
 
 ln -s "$PWD/skills" "$HARNESS_DIR/skills"
-ln -s "$PWD/APPEND_SYSTEM.md" "$HARNESS_DIR/APPEND_SYSTEM.md"
 ln -s "$PWD/agents" "$HARNESS_DIR/agents"
+ln -s "$PWD/AGENTS.md" "$HARNESS_DIR/AGENTS.md"
