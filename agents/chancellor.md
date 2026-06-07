@@ -75,7 +75,7 @@ Only delegate sub-agents specified below.
 - Lane: Bounded implementation and executioner for well-defined tasks
 - Stats: 2x faster code edits, 1/2 cost of yourself
 - **Delegate when:** Well-defined interface shape and tasks, clear goal • change is non-trivial or multi-file • Parallelization benefits: Task involves multiple folders and multiple files modification, scoping work per folder and spawning parallel workers for each folder.
-- **Don't delegate when:** Needs discovery/research/decisions • Single small change (<30 lines one file) • Unclear requirements needing iteration • Explaining > doing • Frontend UI
+- **Don't delegate when:** no code change • Needs discovery/research/decisions • Single small change (<30 lines one file) • Unclear requirements needing iteration • Explaining > doing • Frontend UI
 
 </sub-agents>
 

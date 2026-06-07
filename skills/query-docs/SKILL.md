@@ -9,10 +9,10 @@ description: Retrieve documentation for any library, framework, and components. 
 
 ### Step 1: Search for the Library
 
-To find the Context7 library ID, query with `read` tool:
+To find the Context7 library ID, query the search endpoint:
 
-```
-https://context7.com/api/v2/libs/search?libraryName=LIBRARY_NAME&query=TOPIC
+```sh
+curl -s "https://context7.com/api/v2/libs/search?libraryName=LIBRARY_NAME&query=TOPIC" | jq '.results[0]'
 ```
 
 **Parameters:**
@@ -29,10 +29,10 @@ https://context7.com/api/v2/libs/search?libraryName=LIBRARY_NAME&query=TOPIC
 
 ### Step 2: Fetch Documentation
 
-To retrieve documentation, use the library ID from step 1, read:
+To retrieve documentation, use the library ID from step 1:
 
-```
-https://context7.com/api/v2/context?libraryId=LIBRARY_ID&query=TOPIC&type=txt
+```sh
+curl -s "https://context7.com/api/v2/context?libraryId=LIBRARY_ID&query=TOPIC&type=txt"
 ```
 
 **Parameters:**
@@ -45,27 +45,28 @@ https://context7.com/api/v2/context?libraryId=LIBRARY_ID&query=TOPIC&type=txt
 
 ### Next.js routing documentation
 
-```
+```sh
 # Find Next.js library ID
-https://context7.com/api/v2/libs/search?libraryName=nextjs&query=routing
+curl -s "https://context7.com/api/v2/libs/search?libraryName=nextjs&query=routing" | jq '.results[0].id'
 
 # Fetch app router documentation
-https://context7.com/api/v2/context?libraryId=/vercel/next.js&query=app+router&type=txt
+curl -s "https://context7.com/api/v2/context?libraryId=/vercel/next.js&query=app+router&type=txt"
 ```
 
 ### FastAPI dependency injection
 
-```
+```sh
 # Find FastAPI library ID
-https://context7.com/api/v2/libs/search?libraryName=fastapi&query=dependencies
+curl -s "https://context7.com/api/v2/libs/search?libraryName=fastapi&query=dependencies" | jq '.results[0].id'
 
 # Fetch dependency injection documentation
-https://context7.com/api/v2/context?libraryId=/fastapi/fastapi&query=dependency+injection&type=txt
+curl -s "https://context7.com/api/v2/context?libraryId=/fastapi/fastapi&query=dependency+injection&type=txt"
 ```
 
 ## Tips
 
 - Use `type=txt` for more readable output
+- Use jq to filter and format JSON responses during querying ID
 - Be specific with the `query` parameter to improve relevance ranking
 - If the first search result is not correct, check additional results in the array
 - URL-encode query parameters containing spaces (use `+` or `%20`)

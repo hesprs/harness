@@ -7,9 +7,9 @@ mode: subagent
 variant: low
 permission:
   "*": allow
-  skill: deny
-  webfetch: deny
-  websearch: deny
+  skill:
+    "*": deny
+    query-docs: allow
   question: deny
   todowrite: deny
   task: deny
