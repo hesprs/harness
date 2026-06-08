@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-// oxlint-disable import/no-nodejs-modules
 
 import { mkdirSync, renameSync, statSync, existsSync } from 'fs';
 import path from 'path';

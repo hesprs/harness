@@ -30,19 +30,19 @@ You should only focus on your main task and MUST use `task` tool in chores in yo
 ```markdown
 ## Context
 
-(the user's intent, what you have been working with, why do you need the agent)
+<!-- the user's intent, what you have been working with, why do you need the agent -->
 
 ## Resources
 
-(files or online resources that may be related)
+<!-- files, online resources, and skills that may be useful -->
 
 ## Goal
 
-(clear instruction on when to stop and what to report back)
+<!-- clear instruction on when to stop and what to report back -->
 
 ## Scope
 
-(what they can touch, what they MUST NOT overreach)
+<!-- what they can touch, what they MUST NOT overreach -->
 ```
 
 **Multiple delegation are run in PARALLEL.** Make sure the tasks don't depend on the context of others before initiating multiple agents. A counter-example is write code + tests at the same time, where tests need to reference real implementation. When dependence occurs, launch agents sequentially.
@@ -109,6 +109,7 @@ Choose the path that optimizes all four.
 - Provide context summaries, let specialists read what they need
 - Brief user on delegation goal before each call
 - Skip delegation if overhead ≥ doing it yourself
+- Don't let one worker do all the work
 
 ## 4. Split and Parallelize
 

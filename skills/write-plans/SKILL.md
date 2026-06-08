@@ -52,36 +52,49 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 - Format:
 
 ```md
-# <feature name> Plan
+# <!-- feature name --> Plan
 
 ## Context
 
-**Source**: (what mandates the change, e.g., change in blueprint, a bug, user's requirement)
+**Source**: <!-- what mandates the change, e.g., change in blueprint, a bug, user's requirement -->
 
-(list touched blueprint documents and a detailed synthesis what change is proposed by it if source is blueprint)
-(elaborate repro and root cause if source is a bug)
-(make your context reasonable for other sources)
+<!--
+List touched blueprint documents and a detailed synthesis what change is proposed by it if source is blueprint:
+- elaborate repro and root cause if source is a bug
+- make your context reasonable for other sources
+-->
 
 ## Current Implementation
 
-(current state)
+<!-- current state -->
 
 ## Target Implementation
 
-(proposed changes)
+<!-- proposed changes -->
 
-## Files Related and Changes to Their Public APIs
+## Files and Changes in Public Interface
 
-(**you MUST inspect source files and point to specific file paths and what to change in detail**)
-(for adding a new file, you must list the proposed exports in this file)
-(for modifying a file, if the modification is huge, you must list the proposed final state of the file's export interface; if only small changes, list changed exports)
-(explicitly list files to delete or move)
-(if proposed change includes classes, you must list all public methods / properties into interfaces)
-(Example:)
+<!--
+**you MUST inspect source files and point to specific file paths and what to change in detail**:
 
-All file changes specified below are module exports and public class methods / properties, add private helpers or import utils freely. (include this sentence)
+- for creating a new file, you must list the proposed exports in this file
+- for modifying a file, if the modification is huge, you must list the proposed final state of the file's export interface; if only small changes, list changed exports
+- for meta changes (adding / deleting a dep), include in `Meta` section
+- explicitly list files to delete or move
+- if proposed change includes classes, you must list all public methods / properties into interfaces
 
-### Add `src/foo.ts`
+Example:
+-->
+
+All file changes specified below are module exports and public class methods / properties, add private helpers or import utils freely. <!-- include this sentence -->
+
+### Meta
+
+- Install `openai` as dev dependency.
+- Remove `lodash-es` dependency.
+- <!-- skip this section if no meta change -->
+
+### Create `src/foo.ts`
 
 `export type APIResponse = { status: string };`
 
@@ -90,38 +103,42 @@ All file changes specified below are module exports and public class methods / p
 `export function ping(url: string): boolean;`
 
 - ping the URL and return connectivity
-- (detailed explanation if needed)
+- <!-- detailed explanation if needed -->
 
 `export function alert(severity: 'warn' | 'error', data: unknown): void;`
 
-- (explanation)
+- <!-- explanation -->
 
 ### Modify `src/bar.ts`
 
-> Below is the canonical final export interface for this file. Refactor the file to align with this shape and remove everything redundant. (include this sentence in plan for large modification)
+> Below is the canonical final export interface for this file. Refactor the file to align with this shape and remove everything redundant. <!-- include this sentence in plan for large modification -->
 
 `export function getUser()`
 
-- (explanation, if no change to this export, say "keep original")
+- <!-- explanation, if no change to this export, say "keep original" -->
 
 `export function recoverPassword(user: string, method: RecoverMethods): void;`
 
-- (explanation)
+- <!-- explanation -->
 
 ### Modify `src/abc.ts`
 
-> Below are the public interface of this file that will be touched in implementation of the plan. (include this for small modification)
+> Below are the public interface of this file that will be touched in implementation of the plan. <!-- include this for small modification -->
 
 `export function shutdown(): void;`
 
-- (explanation)
+- <!-- explanation -->
 
-## Testing (skip if no testing possible)
+## Testing <!-- skip if no testing possible -->
 
-(Specify test files and test cases to add)
-( use flat top-level `test()` inside test files instead of nested `describe()` and `it()`.)
-(For each test case, specify what behavior of what export from which file are tested)
-(Example:)
+<!--
+Specify test files and test cases to add:
+
+- use flat top-level `test()` inside test files instead of nested `describe()` and `it()`
+- for each test case, specify what behavior of what export from which file are tested
+
+Example:
+-->
 
 ### `test/foo.test.ts`
 

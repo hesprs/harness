@@ -10,9 +10,12 @@ permission:
   skill:
     '*': deny
     query-docs: allow
+    review-implementation: allow
   question: deny
   todowrite: deny
   task: deny
+  write: deny
+  edit: deny
 ---
 
 You are Explorer - a fast codebase navigation specialist.

@@ -87,6 +87,7 @@ Evaluate the optimal agent delegation strategy to achieve the goal, principles:
 
 - provide them with full context they need to complete the task via direct prompting
 - each agent focus on one atomic task and needs minimal extra context other than what you provided
+- don't let one worker do all the work
 - each agent's scope doesn't overlap
 - maximize speed by parallelizing agent execution
 - resolve task dependency, never delegate agents to complete tasks whose dependencies are not done (e.g., always write tests after the implementation)

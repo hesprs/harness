@@ -29,8 +29,8 @@ You are Librarian - a research specialist for codebases and documentation.
 **Tools to Use**:
 
 - `query-docs` skill: targeted official documentation lookup
-- `websearch`: General web information search
-- `webfetch`: Search GitHub repositories
+- `websearch`: general web information search (do not use it for docs fetch, use `query-docs` skill)
+- `webfetch`: fetch content from a URL
 
 **Behavior**:
 

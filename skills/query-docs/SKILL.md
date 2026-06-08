@@ -23,7 +23,7 @@ bun path/to/skill/search-library.ts LIBRARY_NAME TOPIC
 
 **Response fields:**
 
-- `id`: Library identifier for the context endpoint (e.g., `/websites/react_dev_reference`), which will be used in next step
+- `id`: Library identifier for the context endpoint (e.g., `/facebook/react`), which will be used in next step
 - `title`: Human-readable library name
 - `description`: Brief description of the library
 - `totalSnippets`: Number of documentation snippets available
@@ -42,26 +42,28 @@ bun path/to/skill/fetch-docs.ts LIBRARY_ID TOPIC
 - `query` (required): The specific topic to retrieve documentation for
 - `--type` / `-t` (optional): Response format - `txt` (default) or `json`
 
+If you don't find desired doc info in one invocation, you can repeat this step many times with varying queries.
+
 ## Examples
 
-### Next.js routing documentation
+Next.js routing documentation:
 
 ```sh
 # Find Next.js library ID
-bun path/to/skill/search-library.ts --type json nextjs routing
+bun path/to/skill/search-library.ts nextjs routing
 
 # Fetch app router documentation
-bun path/to/skill/fetch-docs.ts --type txt /vercel/next.js app router
+bun path/to/skill/fetch-docs.ts /vercel/next.js "app router"
 ```
 
-### FastAPI dependency injection
+FastAPI dependency injection:
 
 ```sh
 # Find FastAPI library ID
-bun path/to/skill/search-library.ts --type json fastapi dependencies
+bun path/to/skill/search-library.ts fastapi dependencies
 
 # Fetch dependency injection documentation
-bun path/to/skill/fetch-docs.ts --type txt /fastapi/fastapi dependency injection
+bun path/to/skill/fetch-docs.ts /fastapi/fastapi "dependency injection"
 ```
 
 ## Tips
