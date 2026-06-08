@@ -1,6 +1,7 @@
 import type { Hooks, PluginInput } from '@opencode-ai/plugin';
 import path from 'node:path';
 import type { ContextFile } from './utils';
+import type { AppLogger } from './utils/app-log';
 import {
 	deriveTaskSessionLabel,
 	parseTaskIdFromTaskOutput,
@@ -83,6 +84,7 @@ export default createTaskSessionManagerHook;
 
 export function createTaskSessionManagerHook(
 	ctx: PluginInput,
+	logger: AppLogger,
 	options: {
 		maxSessionsPerAgent: number;
 		readContextMinLines?: number;
@@ -284,11 +286,30 @@ export function createTaskSessionManagerHook(
 
 			const pending = takePendingCall(input.callID, input.sessionID);
 
-			if (!pending || typeof output.output !== 'string') return;
+			if (!pending) {
+				void logger(
+					'warn',
+					`tool.after task missing pending call callId=${input.callID ?? 'unknown'}`,
+				);
+				return;
+			}
+
+			if (typeof output.output !== 'string') {
+				void logger(
+					'warn',
+					`tool.after task missing string output callId=${pending.callId}`,
+				);
+				return;
+			}
 
 			const taskId = parseTaskIdFromTaskOutput(output.output);
 
 			if (!taskId) {
+				void logger(
+					'warn',
+					`tool.after task missing taskId callId=${pending.callId} resumedTaskId=${pending.resumedTaskId ?? 'none'}`,
+				);
+
 				if (pending.resumedTaskId && isMissingRememberedSessionError(output.output))
 					sessionManager.drop(
 						pending.parentSessionId,
@@ -333,14 +354,14 @@ export function createTaskSessionManagerHook(
 			output: Parameters<NonNullable<Hooks['tool.execute.before']>>[1],
 		): Promise<void> => {
 			if (input.tool.toLowerCase() !== 'task') return;
-
 			if (!input.sessionID) return;
-
 			if (typeof output.args !== 'object' || output.args === null) return;
-
 			const args = output.args as TaskArgs;
 
-			if (typeof args.subagent_type !== 'string') return;
+			if (typeof args.subagent_type !== 'string') {
+				void logger('warn', 'tool.before task missing subagent_type');
+				return;
+			}
 
 			const label = deriveTaskSessionLabel({
 				agentType: args.subagent_type,
@@ -369,6 +390,10 @@ export function createTaskSessionManagerHook(
 			);
 
 			if (!remembered) {
+				void logger(
+					'warn',
+					`tool.before task resume miss taskId=${requested} agentType=${args.subagent_type}`,
+				);
 				delete args.task_id;
 				return;
 			}

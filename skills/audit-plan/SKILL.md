@@ -24,13 +24,13 @@ Review the plan against its purpose, and optimize the plan for maintainability.
    - Any logic inconsistencies or flaws?
    - Is the plan likely to break other parts due to public interface shift?
    - Does the plan introduce unnecessary complexity?
-2. For huge logic flaw or incomplete plan, stop immediately and report back "Audit failed, huge flaw found: (explanation). Do I need to propose a fix?". If the user answers yes, start an `interview` skill session around a feasible implementation, then patch the plan.
+2. For huge logic flaw or incomplete plan, stop immediately and report back "Audit failed, huge flaw found: (explanation). Do I need to propose a fix?". If the user answers yes, start an `interview-user` skill session around a feasible implementation, then patch the plan.
 3. If small inconsistency that does not require architectural change, patch directly.
 
 ### 3. Review Plan
 
 1. Check the whole plan for the design and narrative principles in the `Design` section.
-2. Think about optimization.
+2. Think about add / trim tests, optimize interface.
 3. Patch the plan directly with your optimization.
 4. Optionally add hint for individual files if you think the non-public part in the file worth emphasize.
 
@@ -39,7 +39,7 @@ Review the plan against its purpose, and optimize the plan for maintainability.
 After all steps, report back:
 
 - not what you changed, but a general summary of the whole plan
-- recommended logical sequence of implementation (whatever your sequence is, tests are always after impl)
+- recommended logical sequence of implementation (note tests are always after implementation)
 
 ## Design
 

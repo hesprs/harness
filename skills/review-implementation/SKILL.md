@@ -13,13 +13,11 @@ Review the implementation against its effect, and optimize for maintainability.
 
 ### 1. Validate Completeness
 
-Read code against the plan, verify that all planned file edits are present. If found missing, implement directly by yourself.
-
-Scan the sanity of the implementation, if found anything obviously wrong, patch it.
+Read code against the plan, verify that all planned file edits are present. And the code is able to run without obvious bugs. If found anything missing or wrong, stop and report the fact in detail.
 
 ### 2. Tighten Code Quality
 
-Simplify the code covered by this plan according to `./simplify.md`.
+If validation passes, simplify the code covered by this plan according to `./simplify.md`, patch directly.
 
 ### 3. Final Test
 

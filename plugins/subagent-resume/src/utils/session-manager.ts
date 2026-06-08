@@ -122,7 +122,9 @@ export class SessionManager {
 
 	resolve(parentSessionId: string, agentType: string, key: string) {
 		const group = this.getAgentGroup(parentSessionId, agentType, false);
-		return group?.find((entry) => entry.alias === key || entry.taskId === key);
+		const match = group?.find((entry) => entry.alias === key || entry.taskId === key);
+
+		return match;
 	}
 
 	drop(parentSessionId: string, agentType: string, key: string): void {
@@ -135,9 +137,13 @@ export class SessionManager {
 	}
 
 	dropTask(taskId: string): void {
+		let removed = 0;
+
 		for (const [parentSessionId, groups] of this.sessionsByParent.entries())
 			for (const [agentType, group] of groups.entries()) {
+				const before = group.length;
 				const next = group.filter((entry) => entry.taskId !== taskId);
+				removed += before - next.length;
 				this.setAgentGroup(parentSessionId, agentType, next);
 			}
 	}

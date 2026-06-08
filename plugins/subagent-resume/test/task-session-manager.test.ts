@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { createTaskSessionManagerHook } from '../src/task-manager';
 
 function createHook() {
-	return createTaskSessionManagerHook({ directory: '/tmp' } as never, {
+	return createTaskSessionManagerHook({ directory: '/tmp' } as never, async () => {}, {
 		maxSessionsPerAgent: 2,
 		readContextMaxFiles: 8,
 		readContextMinLines: 10,
@@ -20,7 +20,13 @@ function createMessage(sessionID: string, text = 'do something') {
 	};
 }
 
-const taskOutput = 'task_id: child-1 (for resuming to continue this task if needed)';
+const taskOutput = [
+	'<task id="child-1" state="completed">',
+	'<task_result>',
+	'done',
+	'</task_result>',
+	'</task>',
+].join('\n');
 
 async function completeTask(
 	hook: ReturnType<typeof createHook>,

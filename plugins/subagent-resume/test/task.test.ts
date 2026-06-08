@@ -5,6 +5,17 @@ const cases = [
 	{
 		expected: 'session-abc-123',
 		name: 'parses task id from task output',
+		output: [
+			'<task id="session-abc-123" state="completed">',
+			'<task_result>',
+			'done',
+			'</task_result>',
+			'</task>',
+		].join('\n'),
+	},
+	{
+		expected: 'session-abc-123',
+		name: 'parses legacy task id line',
 		output: 'task_id: session-abc-123 (for resuming to continue this task if needed)',
 	},
 	{

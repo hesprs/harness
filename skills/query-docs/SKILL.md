@@ -42,7 +42,7 @@ bun path/to/skill/fetch-docs.ts LIBRARY_ID TOPIC
 - `query` (required): The specific topic to retrieve documentation for
 - `--type` / `-t` (optional): Response format - `txt` (default) or `json`
 
-If you don't find desired doc info in one invocation, you can repeat this step many times with varying queries.
+If you don't find desired doc info in one invocation, you can repeat this step many times with varying queries. You can also retry step 1 for a more relevant library.
 
 ## Examples
 

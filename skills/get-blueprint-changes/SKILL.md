@@ -12,4 +12,4 @@ disable-model-invocation: true
 6. Read full documents in `blueprint` folder touched by commits and changes.
 7. Inspect more blueprint to understand the structure of the change if needed.
 8. Present the user with a detailed synthesis of the meaningful changes in blueprint documents.
-9. Ask the user whether to progress to planning stage. If they answer yes, start a `write-plans` skill session about the changes proposed by the changes in blueprint.
+9. Ask the user whether to progress to planning stage. If they answer yes, start a `make-plans` skill session about the changes proposed by the changes in blueprint.

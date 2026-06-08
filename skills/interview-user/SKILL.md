@@ -1,5 +1,5 @@
 ---
-name: interview
+name: interview-user
 description: Clarify user intents by asking questions. Use only when user instructs or other skill references.
 ---
 

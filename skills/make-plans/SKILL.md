@@ -1,6 +1,6 @@
 ---
-name: write-plans
-description: Mandatory workflow to transform vague ideas into validated designs and stepped implementation plans. Use only when user instructs or other skill references.
+name: make-plans
+description: Workflow to transform vague ideas into validated designs and stepped implementation plans. Use only when user instructs or other skill references.
 ---
 
 ## Core Mandate
@@ -30,13 +30,10 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 - If you have more than one sub-project, present to user all your sub-projects, what they cover, order and you will proceed, and ask for approval. Then proceed. Only one plan proceed directly.
 - Execute this workflow for only **one sub-project at a time** for each sub-project. Each sub-project gets its own design validation → plan cycle + the distinct plan Markdown saved in `plans/`.
 
-### 3. Clarifying Dialogue
+### 3. Sectional Design & Validation Dialogue
 
-- Start a `interview` skill session with the user about the requested change.
-
-### 4. Sectional Design & Validation
-
-- After interview, present the design in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy). Do not present raw code or interface.
+- Design the plan in detail in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy). Do not present raw code or interface.
+- For each section, start a `interview-user` skill session with the user about the requested change.
 - Scale section depth to complexity (a few sentences for straightforward parts, more detail for nuanced logic).
 - **Get explicit user approval after each section.** If the user requests changes, revise the section before proceeding.
 - Design Principles:
@@ -46,7 +43,7 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
   - **Selective Testing:** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
 - Keep the evolving design entirely in-context. Do not write or commit spec files.
 
-### 5. Plan Generation
+### 4. Plan Generation
 
 - Once the design is fully approved section-by-section, generate the implementation plan, you should formulate a plan for each sub-project.
 - Format:
@@ -154,7 +151,7 @@ Case `recoverPassword should reject when user does not exist`
 (same format as above)
 ```
 
-### 6. Self-Review
+### 5. Self-Review
 
 - Run immediately after generating the full plan.
 - Perform the Self-Review Protocol (see below).
@@ -171,6 +168,6 @@ Case `recoverPassword should reject when user does not exist`
 7. **No Hesitation**: the plan should be deterministic; don't use "prefer", "consider", "may ... later".
 8. **Domain Split**: each generated plan contains only one highly coupled change. No independent module changes coexist in a single plan file.
 
-### 7. Save to File
+### 6. Save to File
 
-- Save your final plan(s) as `plan/<feature-name>.md` (create if not present).
+- Save your final plan(s) as `plan/<feature-name>.md` (create folder if not present).
