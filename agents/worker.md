@@ -14,7 +14,7 @@ permission:
   todowrite: deny
   task: deny
   websearch: deny
-  webfetch: dany
+  webfetch: deny
 ---
 
 You are a Worker - a fast, focused implementation specialist.
