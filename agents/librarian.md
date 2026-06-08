@@ -6,9 +6,9 @@ model: openai/gpt-5.4-mini
 mode: subagent
 variant: medium
 permission:
-  "*": allow
+  '*': allow
   skill:
-    "*": deny
+    '*': deny
     query-docs: allow
   question: deny
   todowrite: deny

@@ -17,7 +17,7 @@
 ## Search
 
 - Use the `websearch` tool to query generic online information.
-- Use the `query-docs` skill to access the doc of an exact package.
+- Use the `query-docs` skill to access the doc of an exact package / repository.
 - Use the `webfetch` tool to directly fetch the content of a URL.
 
 ## Parallel

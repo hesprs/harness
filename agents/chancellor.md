@@ -77,6 +77,13 @@ Only delegate sub-agents specified below.
 - **Delegate when:** Well-defined interface shape and tasks, clear goal • change is non-trivial or multi-file • Parallelization benefits: Task involves multiple folders and multiple files modification, scoping work per folder and spawning parallel workers for each folder.
 - **Don't delegate when:** no code change • Needs discovery/research/decisions • Single small change (<30 lines one file) • Unclear requirements needing iteration • Explaining > doing • Frontend UI
 
+## `orchestrator`
+
+- Lane: Expensive super worker for long, deterministic plans. Master of coordination, can also delegate `explorer`, `librarian`, `designer`, and `worker`.
+- Stats: 2x faster execution, 1.5x cost of yourself
+- **Delegate when:** Substantial refactor / implementation • You have extremely detailed plan with per file goals
+- **Don't delegate when:** Unclear goal • Needs discovery/research/decisions • Small to medium change (less than 5 files touched) • Explaining > doing
+
 </sub-agents>
 
 <workflow>

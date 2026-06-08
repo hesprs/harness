@@ -9,37 +9,38 @@ description: Retrieve documentation for any library, framework, and components. 
 
 ### Step 1: Search for the Library
 
-To find the Context7 library ID, query the search endpoint:
+To find the Context7 library ID, use the search script:
 
 ```sh
-curl -s "https://context7.com/api/v2/libs/search?libraryName=LIBRARY_NAME&query=TOPIC" | jq '.results[0]'
+bun path/to/skill/search-library.ts LIBRARY_NAME TOPIC
 ```
 
 **Parameters:**
 
 - `libraryName` (required): The library name to search for (e.g., "react", "nextjs", "fastapi", "axios")
 - `query` (required): A description of the topic for relevance ranking
+- `--type` / `-t` (optional): `json` (default) for structured output, `txt` for readable summary
 
 **Response fields:**
 
-- `id`: Library identifier for the context endpoint (e.g., `/websites/react_dev_reference`)
+- `id`: Library identifier for the context endpoint (e.g., `/websites/react_dev_reference`), which will be used in next step
 - `title`: Human-readable library name
 - `description`: Brief description of the library
 - `totalSnippets`: Number of documentation snippets available
 
 ### Step 2: Fetch Documentation
 
-To retrieve documentation, use the library ID from step 1:
+To retrieve documentation, use the fetch script with library ID from step 1:
 
 ```sh
-curl -s "https://context7.com/api/v2/context?libraryId=LIBRARY_ID&query=TOPIC&type=txt"
+bun path/to/skill/fetch-docs.ts LIBRARY_ID TOPIC
 ```
 
 **Parameters:**
 
 - `libraryId` (required): The library ID from search results
 - `query` (required): The specific topic to retrieve documentation for
-- `type` (optional): Response format - `json` (default) or `txt` (plain text, more readable)
+- `--type` / `-t` (optional): Response format - `txt` (default) or `json`
 
 ## Examples
 
@@ -47,26 +48,24 @@ curl -s "https://context7.com/api/v2/context?libraryId=LIBRARY_ID&query=TOPIC&ty
 
 ```sh
 # Find Next.js library ID
-curl -s "https://context7.com/api/v2/libs/search?libraryName=nextjs&query=routing" | jq '.results[0].id'
+bun path/to/skill/search-library.ts --type json nextjs routing
 
 # Fetch app router documentation
-curl -s "https://context7.com/api/v2/context?libraryId=/vercel/next.js&query=app+router&type=txt"
+bun path/to/skill/fetch-docs.ts --type txt /vercel/next.js app router
 ```
 
 ### FastAPI dependency injection
 
 ```sh
 # Find FastAPI library ID
-curl -s "https://context7.com/api/v2/libs/search?libraryName=fastapi&query=dependencies" | jq '.results[0].id'
+bun path/to/skill/search-library.ts --type json fastapi dependencies
 
 # Fetch dependency injection documentation
-curl -s "https://context7.com/api/v2/context?libraryId=/fastapi/fastapi&query=dependency+injection&type=txt"
+bun path/to/skill/fetch-docs.ts --type txt /fastapi/fastapi dependency injection
 ```
 
 ## Tips
 
-- Use `type=txt` for more readable output
-- Use jq to filter and format JSON responses during querying ID
 - Be specific with the `query` parameter to improve relevance ranking
 - If the first search result is not correct, check additional results in the array
-- URL-encode query parameters containing spaces (use `+` or `%20`)
+- Use quoted args for multi-word queries

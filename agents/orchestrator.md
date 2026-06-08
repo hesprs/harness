@@ -2,14 +2,14 @@
 name: orchestrator
 description: Good at synthesizing multiple sub-agents and achieve well-defined coding tasks with high efficiency.
 temperature: 0.3
-model: openai/gpt-5.4
+model: openai/gpt-5.4-mini
 mode: subagent
 variant: medium
 permission:
-  "*": allow
+  '*': allow
   ask: deny
   skill:
-    "*": deny
+    '*': deny
     query-docs: allow
     write-tests: allow
 ---

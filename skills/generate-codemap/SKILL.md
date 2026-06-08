@@ -24,7 +24,7 @@ You help users understand and map repositories by creating hierarchical codemaps
 1. **Analyze the repository structure** - List files, understand directories
 2. **Infer patterns** for **core code/config files ONLY** to include:
    - **Include**: `src/**/*.ts`, `package.json`, etc.
-   - **Exclude (MANDATORY)**: Do NOT include tests, documentation, or translations.
+   - **Exclude (MANDATORY)**: Do NOT include tests, documentation, or translations. You must explore the codebase and list all file patterns to exclude before running initialization script.
      - Tests: `**/*.test.ts`, `**/*.spec.ts`, `tests/**`, `__tests__/**`
      - Docs: `docs/**`, `*.md` (except root `README.md` if needed), `LICENSE`
      - Build/Deps: `node_modules/**`, `dist/**`, `build/**`, `*.min.js`
@@ -32,10 +32,10 @@ You help users understand and map repositories by creating hierarchical codemaps
 3. **Run codemap.mjs init**:
 
 ```sh
-node <directory of this skill>/codemap.mjs init \
+bun directory/of/skill/codemap.ts init \
   --root ./ \
   --include "src/**/*.ts" \
-  --exclude "**/*.test.ts" --exclude "dist/**" --exclude "node_modules/**" <all other files you need to exclude>
+  --exclude "**/*.test.ts" --exclude "dist/**" --exclude "node_modules/**" <all other files you must exclude>
 ```
 
 This creates:
@@ -50,7 +50,7 @@ This creates:
 1. **Run codemap.mjs changes** to see what changed:
 
 ```sh
-node <directory of this skill>/codemap.mjs changes \
+bun directory/of/skill/codemap.ts changes \
   --root ./
 ```
 
@@ -65,52 +65,19 @@ node <directory of this skill>/codemap.mjs changes \
    - Delegate agents in turns according to depth, from the deepest level to the atlas (atlas should be done by yourself), each turn only delegate worker agent in folders that have the same depth. Do not delegate all agents all at once.
    - Prompt for each agent, copy paste as-is with the placeholder filled:
 
-````markdown
-You are responsible for writing `codemap.md` file in directory `<placeholder directory>` during this workflow. Explore the code and related integrations. Use precise technical terminology to document the implementation:
+```markdown
+You are responsible for writing `codemap.md` file in directory `<placeholder directory>`. You must create `codemap.md` if missing, overwrite if existing, create if missing. Explore the code and related integrations. Use precise technical terminology to document the implementation:
 
 - **Responsibility** - Define the specific role of this directory using standard software engineering terms (e.g., "Service Layer", "Data Access Object", "Middleware").
 - **Design Patterns** - Identify and name specific patterns used (e.g., "Observer", "Singleton", "Factory", "Strategy"). Detail the abstractions and interfaces.
 - **Data & Control Flow** - Explicitly trace how data enters and leaves the module. Mention specific function call sequences and state transitions.
 - **Integration Points** - List dependencies and consumer modules. Use technical names for hooks, events, or API endpoints.
-
-Example codemap:
-
-```markdown
-# src/agents/
-
-## Responsibility
-
-Defines agent personalities and manages their configuration lifecycle.
-
-## Design
-
-Each agent is a prompt + permission set. Config system uses:
-
-- Default prompts (orchestrator.ts, explorer.ts, etc.)
-- User overrides from ~/.config/opencode/oh-my-opencode-slim.json
-- Permission wildcards for skill/MCP access control
-
-## Flow
-
-1. Plugin loads → calls getAgentConfigs()
-2. Reads user config preset
-3. Merges defaults with overrides
-4. Applies permission rules (wildcard expansion)
-5. Returns agent configs to OpenCode
-
-## Integration
-
-- Consumed by: Main plugin (src/index.ts)
-- Depends on: Config loader, skills registry
 ```
-
-You must write `codemap.md`, overwrite if existing, create if missing. Do not ask why.
-````
 
 4. **Run update** to save new state:
 
 ```bash
-node ~/.config/opencode/skills/codemap/scripts/codemap.mjs update \
+bun directory/of/skill/codemap.ts update \
   --root ./
 ```
 
