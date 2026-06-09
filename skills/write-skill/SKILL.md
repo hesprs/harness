@@ -1,5 +1,5 @@
 ---
-name: write-a-skill
+name: write-skill
 description: Create a new agent skill with proper structure, progressive disclosure, and bundled resources.
 disable-model-invocation: true
 ---
@@ -29,9 +29,9 @@ disable-model-invocation: true
 ```
 skill-name/
 ├── SKILL.md           # Main instructions (required)
-├── REFERENCE.md       # Detailed docs (if needed)
-├── EXAMPLES.md        # Usage examples (if needed)
-└── scripts/           # Utility scripts (if needed)
+├── REFERENCE.md       # Detailed docs (optional)
+├── EXAMPLES.md        # Usage examples (optional)
+└── scripts/           # Utility scripts (optional)
     └── helper.js
 ```
 
@@ -45,17 +45,17 @@ description: Brief description of capability. Use when [specific triggers].
 
 # Skill Name
 
-## Quick start
+## Core Mandate
 
-[Minimal working example]
+<!-- Minimal working example -->
 
 ## Workflows
 
-[Step-by-step processes with checklists for complex tasks]
+<!-- Step-by-step processes with checklists for complex tasks -->
 
 ## Advanced features
 
-[Link to separate files: See [REFERENCE.md](REFERENCE.md)]
+<!-- Link to separate files: --> See [REFERENCE.md](REFERENCE.md)]
 ```
 
 ## Description Requirements
@@ -79,14 +79,6 @@ The description is **the only thing your agent sees** when deciding which skill 
 ```
 Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when user mentions PDFs, forms, or document extraction.
 ```
-
-**Bad example**:
-
-```
-Helps with documents.
-```
-
-The bad example gives your agent no way to distinguish this from other document skills.
 
 ## When to Add Scripts
 

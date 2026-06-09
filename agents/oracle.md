@@ -9,6 +9,7 @@ permission:
   '*': allow
   skill:
     '*': deny
+    ask: allow
     query-docs: allow
     write-tests: allow
     audit-plan: allow

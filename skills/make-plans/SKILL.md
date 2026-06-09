@@ -110,11 +110,19 @@ All file changes specified below are module exports and public class methods / p
 
 > Below is the canonical final export interface for this file. Refactor the file to align with this shape and remove everything redundant. <!-- include this sentence in plan for large modification -->
 
-`export function getUser()`
+`export function getUser(): User;`
 
 - <!-- explanation, if no change to this export, say "keep original" -->
 
-`export function recoverPassword(user: string, method: RecoverMethods): void;`
+`export class User`
+
+- the class for a user entity
+
+`User.constructor(info: { email: string, password: string })`
+
+- <!-- explanation -->
+
+`User.getPasswordHash(): string;`
 
 - <!-- explanation -->
 
