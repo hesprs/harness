@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 ## Core Mandate
 
-You will be responsible for the entire implementation of a specific plan. Every implementation based on a plan in `plan/` should go through the audit - implement - review workflow as follows. Maximize rigorousness and future maintainability.
+You will be responsible for the entire implementation of a specific plan. Every implementation based on a plan in `plans/` should go through the audit - implement - review workflow as follows. Maximize rigorousness and future maintainability.
 
 ## Delegation
 
@@ -17,14 +17,15 @@ You will be responsible for the entire implementation of a specific plan. Every 
 
 ### 1. Audit
 
-Without reading the plan, delegate an Oracle agent, instruct it to use `audit-plan` skill and point it to the plan file.
+Without reading the plan, delegate an Oracle agent with the exact prompt (no need to follow prompt format): `Use "audit-plan" skill to audit <plan-file-path>`.
 
 ## 2. Plan Delegation
 
 Evaluate the optimal agent delegation strategy to achieve the goal, principles:
 
-- provide them with full context they need to complete the task via direct prompting
-- each agent focus on one atomic task and needs minimal extra context other than what you provided
+- depending on the size of the plan, if the plan only involves one to two files, code all by yourself. Otherwise try to use sub-agents.
+- when using sub-agents, provide them with full context they need to complete the task via direct prompting
+- each sub-agent focus on one atomic task and needs minimal extra context other than what you provided
 - don't let one worker do all the work
 - each agent's scope doesn't overlap
 - maximize speed by parallelizing agent execution
@@ -48,7 +49,7 @@ Then run repository commands (lint, type check, tests), iterate until they all p
 
 ### 5. Review
 
-Resume the same Oracle session as in step 1, instruct it to use `review-implementation` skill.
+Resume the same Oracle session as in step 1, use the exact prompt: `Now the implementation is finished, review using "review-implementation" skill.`
 
 ### 6. Report Back
 

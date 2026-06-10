@@ -36,9 +36,9 @@ Review the plan against its purpose, and optimize the plan for maintainability.
 
 ### 4. Report Back
 
-After all steps, report back:
+After all steps, report back only:
 
-- not what you changed, but a general summary of the whole plan
+- a general summary of the whole plan, not what you changed
 - recommended logical sequence of implementation (note tests are always after implementation)
 
 ## Design
@@ -61,5 +61,5 @@ What should the public interface look like? Which behaviors are most important t
 
 ### Narrative
 
-- Everything plan should be deterministic; "prefer", "consider", "may ... later" forbidden.
+- Everything in the plan should be deterministic; Forbid "prefer", "consider", "may ... later".
 - Can the plan be understood by a engineer with no context? File referenced with clear paths, no jargon, integration background explained in the context.

@@ -4,7 +4,7 @@ description: External documentation and library research. Use for official docs 
 temperature: 0.1
 model: openai/gpt-5.4-mini
 mode: subagent
-variant: medium
+variant: high
 permission:
   '*': allow
   skill:
