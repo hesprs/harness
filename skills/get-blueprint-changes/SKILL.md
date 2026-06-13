@@ -4,6 +4,8 @@ description: Inspect Git history and uncommitted changes to obtain delta in blue
 disable-model-invocation: true
 ---
 
+Execute the exact steps below:
+
 1. List Git commit history with commit message headlines using `git log --oneline -n 10`.
 2. Find all consecutive `blpt` commits starting from the most recent commit. The search should stop at the first non-`blpt` commit.
 3. Use `git diff <hash of the commit prior than the first blpt>...HEAD -- blueprint/` to inspect the cumulative change to the blueprint.

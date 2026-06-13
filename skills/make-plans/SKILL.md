@@ -178,4 +178,4 @@ Case `recoverPassword should reject when user does not exist`
 
 ### 6. Save to File
 
-- Save your final plan(s) as `plan/<feature-name>.md` (create folder if not present).
+- Save your final plan(s) as `plans/<feature-name>.md` (create folder if not present).

@@ -24,7 +24,7 @@ Review the plan against its purpose, and optimize the plan for maintainability.
    - Any logic inconsistencies or flaws?
    - Is the plan likely to break other parts due to public interface shift?
    - Does the plan introduce unnecessary complexity?
-2. For huge logic flaw or incomplete plan, stop immediately and report back "Audit failed, huge flaw found: (explanation). Do I need to propose a fix?". If the user answers yes, start an `interview-user` skill session around a feasible implementation, then patch the plan.
+2. For huge logic flaw or incomplete plan, stop immediately and use the `ask` tool: "Audit failed, huge flaw found: (explanation). Fix options (possible fix paths)?". If the user answers yes, patch the plan with the changes.
 3. If small inconsistency that does not require architectural change, patch directly.
 
 ### 3. Review Plan
