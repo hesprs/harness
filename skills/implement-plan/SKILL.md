@@ -29,7 +29,7 @@ Evaluate the optimal agent delegation strategy to achieve the goal, principles:
 - don't let one worker do all the work
 - each agent's scope doesn't overlap
 - maximize speed by parallelizing agent execution
-- resolve task dependency, never delegate agents to complete tasks whose dependencies are not done (e.g., always write tests after the implementation)
+- resolve task dependency, never delegate agents to complete tasks whose dependencies are not done (e.g., always write tests after the implementation, install all deps by yourself before any worker start)
 - each agent has clear scope and target function to achieve.
 
 After evaluation, save your detailed plan to your todo list.

@@ -12,5 +12,4 @@ Execute the exact steps below:
 4. If you find no qualified commits or the Git diff shows empty. Report back: "No committed changes to the blueprint found."
 5. Read full documents in `blueprint` folder touched by the changes.
 6. Inspect more blueprint to understand the structure of the change if needed.
-7. Present the user with a detailed synthesis of the meaningful changes in blueprint documents.
-8. Ask the user whether to progress to planning stage. If they answer yes, start a `make-plans` skill session about the changes proposed by the changes in blueprint.
+7. Present the user with a detailed synthesis of the meaningful changes in blueprint documents. Cover what is added, what is deleted, and what needs change.

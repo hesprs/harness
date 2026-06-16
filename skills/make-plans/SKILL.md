@@ -33,7 +33,7 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 ### 3. Sectional Design & Validation Dialogue
 
 - Design the plan in detail in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy). Do not present raw code or interface.
-- For each section, start a `interview-user` skill session with the user about the requested change.
+- For each section, you MUST start a `interview-user` skill session with the user about the requested change.
 - Scale section depth to complexity (a few sentences for straightforward parts, more detail for nuanced logic).
 - **Get explicit user approval after each section.** If the user requests changes, revise the section before proceeding.
 - Design Principles:

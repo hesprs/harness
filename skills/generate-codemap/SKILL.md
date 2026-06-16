@@ -1,5 +1,5 @@
 ---
-name: codemap
+name: generate-codemap
 description: Generate comprehensive hierarchical codemaps.
 disable-model-invocation: true
 ---
