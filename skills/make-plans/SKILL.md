@@ -30,18 +30,28 @@ Every feature request / refactor plan, regardless of perceived simplicity, must 
 - If you have more than one sub-project, present to user all your sub-projects, what they cover, order and you will proceed, and ask for approval. Then proceed. Only one plan proceed directly.
 - Execute this workflow for only **one sub-project at a time** for each sub-project. Each sub-project gets its own design validation → plan cycle + the distinct plan Markdown saved in `plans/`.
 
-### 3. Sectional Design & Validation Dialogue
+### 3. Sectional Design (Most Critical)
 
-- Design the plan in detail in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy). Do not present raw code or interface.
-- For each section, you MUST start a `interview-user` skill session with the user about the requested change.
-- Scale section depth to complexity (a few sentences for straightforward parts, more detail for nuanced logic).
-- **Get explicit user approval after each section.** If the user requests changes, revise the section before proceeding.
-- Design Principles:
-  - **YAGNI ruthlessly:** Strip unnecessary features.
-  - **Isolation & Boundaries:** Break systems into smaller units with single responsibilities and well-defined interfaces. Each unit must be independently testable and understandable.
-  - **Interface Stability:** Ensure consumers can understand what a unit does without reading internals.
-  - **Selective Testing:** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
-- Keep the evolving design entirely in-context. Do not write or commit spec files.
+Design the plan in detail in logical sections (e.g., Architecture, Core Components, Data Flow, Error Handling, Testing Strategy). Do not present raw code or interface. Repeat the following sub-steps for each section until all finished and clear.
+
+#### Sub-step 1. Clarifying Dialogue
+
+You MUST use `interview-user` skill and ask about the requested change before coming up with a design, including all the nuances that are underspecified.
+
+#### Sub-step 2. Sectional Presentation
+
+Deep reason about the most simple, performant, and maintainable way to implement the section. Section design principles:
+
+- **YAGNI ruthlessly:** Strip unnecessary features.
+- **Isolation & Boundaries:** Break systems into smaller units with single responsibilities and well-defined interfaces. Each unit must be independently testable and understandable.
+- **Interface Stability:** Ensure consumers can understand what a unit does without reading internals.
+- **Selective Testing:** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
+
+Elaborate to the user on the section design, scale section depth to complexity (a few sentences for straightforward parts, more detail for nuanced logic). **Request explicit user approval for this section.**
+
+#### Sub-step 3. Iteration
+
+If the user requests changes, revise the section, ask for approval again before proceeding. If the user approves, progress to the next section.
 
 ### 4. Plan Generation
 

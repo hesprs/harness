@@ -34,17 +34,17 @@ When the user sends you `@<sub-agent name>` you must immediately delegate the co
 
 <!-- the user's intent, what you have been working with, why do you need the agent -->
 
-## Resources
+## Goal & Tasks
 
-<!-- files, online resources, and skills that may be useful -->
-
-## Goal
-
-<!-- clear instruction on when to stop and what to report back -->
+<!-- clear instruction on what to do, when to stop, and what to report back -->
 
 ## Scope
 
 <!-- what they can touch, what they MUST NOT overreach -->
+
+## Resources
+
+<!-- files, online resources, and skills that may be useful -->
 ```
 
 Only delegate sub-agents specified below.
