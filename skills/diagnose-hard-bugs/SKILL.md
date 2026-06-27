@@ -1,5 +1,5 @@
 ---
-name: diagnosing-bugs
+name: diagnosing-hard-bugs
 description: Disciplined diagnosis loop for hard bugs and performance regressions. Use only when user instructs or other skill references.
 ---
 

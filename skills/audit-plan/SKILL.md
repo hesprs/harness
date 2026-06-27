@@ -24,22 +24,28 @@ Review the plan against its purpose, and optimize the plan for maintainability.
    - Any logic inconsistencies or flaws?
    - Is the plan likely to break other parts due to public interface shift?
    - Does the plan introduce unnecessary complexity?
-2. For huge logic flaw or incomplete plan, stop immediately and use the `ask` tool: "Audit failed, huge flaw found: (explanation). Fix options (possible fix paths)?". If the user answers yes, patch the plan with the changes.
-3. If small inconsistency that does not require architectural change, patch directly.
+2. For huge logic flaw or incomplete plan, stop immediately and use the `ask` tool: "Audit failed, flaw found: (explanation). Fix options (possible fix paths)?". If the user answers yes, patch the plan with the changes.
 
 ### 3. Review Plan
 
 1. Check the whole plan for the design and narrative principles in the `Design` section.
 2. Think about add / trim tests, optimize interface.
-3. Patch the plan directly with your optimization.
-4. Optionally add hint for individual files if you think the non-public part in the file worth emphasize.
+3. Optionally add hint for individual files if you think the non-public part in the file worth emphasize.
 
-### 4. Report Back
+### 4. Patch
+
+1. If you find optimizations or small inconsistencies, you can patch the plan directly.
+2. Before patching, use the `ask` tool with a summary of the changes you will make, then patch the plan according to the user's response.
+3. Do not make any changes without user approval.
+
+### 5. Report Back
 
 After all steps, report back only:
 
 - a general summary of the whole plan, not what you changed
 - recommended logical sequence of implementation (note tests are always after implementation)
+
+You must not present the problems found or patches made in your final response, all problems should be addressed in step 2, 3, and 4.
 
 ## Design
 
