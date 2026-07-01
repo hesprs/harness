@@ -2,9 +2,9 @@
 name: designer
 description: UI/UX design, review, and implementation. Use for styling, responsive design, component architecture and visual polish.
 temperature: 0.7
-model: google/gemini-3.1-pro-preview
+model: openai/gpt-5.4
 mode: subagent
-variant: low
+variant: medium
 permission:
   '*': allow
   skill:

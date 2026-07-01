@@ -4,7 +4,7 @@ description: Strategic technical advisor. Use for architecture decisions, comple
 temperature: 0.2
 model: openai/gpt-5.4
 mode: subagent
-variant: medium
+variant: xhigh
 permission:
   '*': allow
   skill:
