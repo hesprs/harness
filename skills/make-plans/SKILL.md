@@ -58,7 +58,7 @@ If the user requests changes, revise the section, ask for approval again before 
 - Once the design is fully approved section-by-section, generate the implementation plan, you should formulate a plan for each sub-project.
 - Format:
 
-```md
+````md
 # <!-- feature name --> Plan
 
 ## Context
@@ -89,11 +89,12 @@ List touched blueprint documents and a detailed synthesis what change is propose
 - for meta changes (adding / deleting a dep), include in `Meta` section
 - explicitly list files to delete or move
 - if proposed change includes classes, you must list all public methods / properties into interfaces
+- do not list test files here, tests go Testing section
 
 Example:
 -->
 
-All file changes specified below are module exports and public class methods / properties, add private helpers or import utils freely. <!-- include this sentence -->
+> Below are the canonical final export interface for each file. Refactor the file to align with this shape and remove everything redundant. Private helpers and methods not restricted. <!-- include this sentence -->
 
 ### Meta
 
@@ -103,7 +104,11 @@ All file changes specified below are module exports and public class methods / p
 
 ### Create `src/foo.ts`
 
-`export type APIResponse = { status: string };`
+```TypeScript <!- use code block for miltiline code ->
+export type APIResponse = {
+	status: string
+};
+```
 
 - type definition for the API
 
@@ -118,27 +123,29 @@ All file changes specified below are module exports and public class methods / p
 
 ### Modify `src/bar.ts`
 
-> Below is the canonical final export interface for this file. Refactor the file to align with this shape and remove everything redundant. <!-- include this sentence in plan for large modification -->
-
 `export function getUser(): User;`
 
 - <!-- explanation, if no change to this export, say "keep original" -->
 
-`export class User`
+```TypeScript
+export class User {
+	constructor(info: { email: string, password: string });
+	getPasswordHash(): string;
+	getOrders(): Array<Order>;
+}
+```
 
-- the class for a user entity
+The class for a user entity.
 
-`User.constructor(info: { email: string, password: string })`
+`getPasswordHash()`
 
 - <!-- explanation -->
 
-`User.getPasswordHash(): string;`
+`getOrders()`
 
 - <!-- explanation -->
 
 ### Modify `src/abc.ts`
-
-> Below are the public interface of this file that will be touched in implementation of the plan. <!-- include this for small modification -->
 
 `export function shutdown(): void;`
 
@@ -165,9 +172,7 @@ Case `alert should be sent to the API`
 - expected behavior: simulated API ping success and alert sent.
 
 Case `recoverPassword should reject when user does not exist`
-
-(same format as above)
-```
+````
 
 ### 5. Self-Review
 

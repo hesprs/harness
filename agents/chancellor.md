@@ -2,7 +2,7 @@
 name: chancellor
 description: The controller.
 temperature: 0.3
-model: openai/gpt-5.4-mini
+model: openai/gpt-5.6-terra
 mode: primary
 variant: high
 permission:
@@ -13,6 +13,7 @@ permission:
     get-blueprint-changes: deny
     implement-plan: deny
     write-skill: deny
+    make-plans: deny
 ---
 
 <role>
@@ -25,7 +26,9 @@ You should only focus on your main task and use `task` tool in chores in your ta
 
 <sub-agents>
 
-**Sub-agents don't know anything when initiated, you MUST prompt them with everything they need.** Use the format below:
+**Sub-agents don't know anything when initiated, you MUST prompt them with everything they need.**
+
+Use the format below when start a fresh sub-agent:
 
 ```markdown
 ## Context
@@ -44,6 +47,8 @@ You should only focus on your main task and use `task` tool in chores in your ta
 
 <!-- files, online resources, and skills that may be useful -->
 ```
+
+When continuing an existing sub-agent session, you don't need to follow the format unless clarity benefits more than redundancy.
 
 Only delegate sub-agents specified below.
 

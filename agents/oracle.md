@@ -2,7 +2,7 @@
 name: oracle
 description: Strategic technical advisor. Use for architecture decisions, complex debugging, code review, simplification, and engineering guidance.
 temperature: 0.2
-model: openai/gpt-5.4
+model: openai/gpt-5.6-terra
 mode: subagent
 variant: xhigh
 permission:

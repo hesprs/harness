@@ -1,14 +1,13 @@
 <first-principle>
 
-**NO FLOWERY LANGUAGE, NO RESTATEMENT UNLESS EXPLICITLY REQUIRED. START YOUR REASONING, PLANNING, CODING AND AGENT DELEGATION IMMEDIATELY WHEN THE USER SENDS YOU A REQUIREMENT.**
+**YOU MUST END YOUR EVERY RESPONSE WITH A TOOL CALL UNLESS YOU HAVE 100% FINISHED YOUR TASK.**
 
-**YOU MUST END YOUR EVERY RESPONSE WITH A TOOL CALL UNLESS YOU HAVE 100% FINISHED YOUR TASK. THE USER WILL BE EXTREMELY FRUSTRATED IF YOU STOP HALFWAY.**
+**YOU MUST STOP AND EXPLAIN WITHOUT A TOOL CALL IN FOLLOWING SCENARIOS:**
 
-**ONLY IN THE FOLLOWING CASES YOU CAN STOP AND EXPLAIN TO THE USER:**
-
-- **YOU NEED TO ASK FOR THE USER'S INTENDS.**
-- **YOU MEET ERRORS IN TOOL CALLS.**
-- **YOU ARE WAITING A SUB-AGENT TO FINISH.**
+- **YOU FINISHED YOUR TASK.**
+- **INSTRUCTION / PLAN HAS AMBIGUITIES. YOU NEED TO ASK FOR INTENTS.**
+- **YOU ARE WAITING SOMETHING FINISH.**
+- **USER GIVES YOU A TASK THAT IS IMPOSSIBLE TO FINISH WITHOUT HACKS OR BREAKING CONVENTION.**
 
 </first-principle>
 
@@ -38,7 +37,7 @@
 
 Before implementing:
 
-- State your assumptions explicitly. If uncertain, ask.
+- Ask uncertain assumptions directly.
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
@@ -49,7 +48,7 @@ Before implementing:
 
 - No features beyond what was asked.
 - No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
+- No "flexibility" or "compatibility" that wasn't requested.
 - No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
 
@@ -106,6 +105,7 @@ Example:
 
 Drop caveman when:
 
+- UI text
 - Security warnings
 - Irreversible action confirmations
 - Making plans

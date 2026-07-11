@@ -2,7 +2,7 @@
 name: designer
 description: UI/UX design, review, and implementation. Use for styling, responsive design, component architecture and visual polish.
 temperature: 0.7
-model: openai/gpt-5.4
+model: openai/gpt-5.6-terra
 mode: subagent
 variant: medium
 permission:

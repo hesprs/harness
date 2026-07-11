@@ -27,13 +27,13 @@ Evaluate the optimal agent delegation strategy to achieve the goal, principles:
 - when using sub-agents, provide them with full context they need to complete the task via direct prompting
 - each sub-agent focus on one atomic task and needs minimal extra context other than what you provided
 - don't let one worker do all the work
-- each agent's scope doesn't overlap
 - maximize speed by parallelizing agent execution
 - resolve task dependency, never delegate agents to complete tasks whose dependencies are not done, like:
   - tests after implementation
   - install all deps before implementation
   - shared helpers go first, then individual modules
-- each agent has clear scope and target function to achieve.
+- each agent has clear scope and target function to achieve, each agent's scope doesn't overlap
+- review the workers' work after one batch finish before delegating next batch.
 
 After evaluation, save your detailed plan to your todo list.
 
