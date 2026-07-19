@@ -2,7 +2,7 @@
 name: librarian
 description: External documentation and library research. Use for official docs lookup, GitHub examples, and understanding library internals.
 temperature: 0.1
-model: openai/gpt-5.4-mini
+model: openai/gpt-5.6-luna
 mode: subagent
 variant: medium
 permission:

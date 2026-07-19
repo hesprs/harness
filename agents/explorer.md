@@ -2,7 +2,7 @@
 name: explorer
 description: Fast codebase search and pattern matching. Use for finding files, locating code patterns, and answering 'where is X?' questions.
 temperature: 0.1
-model: openai/gpt-5.4-mini
+model: openai/gpt-5.6-luna
 mode: subagent
 variant: low
 permission:
