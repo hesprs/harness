@@ -13,6 +13,13 @@
 
 <tool-usage>
 
+## Availability
+
+- Environment is NixOS.
+- GitHub CLI is installed.
+- Don't read Git history unless instructed.
+- Prefer GitHub CLI over raw `github.com` HTML fetch.
+
 ## Search
 
 - Use the `websearch` tool to query generic online information.

@@ -68,9 +68,9 @@ Watch for over-simplification:
 - Repeated conditionals
 - Generic, misleading, or too long names
 - Duplicated logic
-- Over-defensive guard or normalization that you can ensure it has been check before
+- Over-defensive guard or normalization
 - Dead code
-- Wrappers or abstractions that add no value
+- Wrappers or abstractions that add no value (e.g. helper used only once)
 - Unused exports or public methods shat should be kept local
 - Nested `describe()`, `it()` tests -> flatten to top level `test()`
 

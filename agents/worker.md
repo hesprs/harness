@@ -4,13 +4,15 @@ description: External documentation and library research. Use for official docs 
 temperature: 0.1
 model: openai/gpt-5.6-luna
 mode: all
-variant: high
+variant: xhigh
 permission:
   '*': allow
   skill:
     '*': deny
     write-tests: allow
     query-docs: allow
+    write-code: allow
+    manage-pty: allow
   question: deny
   todowrite: deny
   task: deny
@@ -29,6 +31,7 @@ You are a Worker - a fast, focused implementation specialist.
 - Write or update tests when requested, especially for bounded tasks involving test files, fixtures, mocks, or test helpers
 - Run relevant validation when requested or clearly applicable (otherwise note as skipped with reason)
 - Report completion with summary of changes
+- Use `write-code` skill when writing any code
 - Use `write-tests` skill before writing any tests
 - Stop immediately and report back when meeting unexpected situation (missing package, impractical requirement), do not proceed with assumption.
 

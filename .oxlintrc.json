@@ -55,8 +55,7 @@
 					"camelCase": false,
 					"snakeCase": false,
 					"pascalCase": true
-				},
-				"ignore": "zh-(Hans|Hant).ts"
+				}
 			}
 		],
 		"unicorn/consistent-function-scoping": "off",
@@ -70,7 +69,8 @@
 		"eslint/no-multi-assign": "off",
 		"react/jsx-handler-names": "off",
 		"typescript/method-signature-style": ["warn", "property"],
-		"import/no-nodejs-modules": "off"
+		"import/no-nodejs-modules": "off",
+		"eslint/one-var": ["warn", "never"]
 	},
 	"env": {
 		"builtin": true,

@@ -368,7 +368,6 @@ export function createTaskSessionManagerHook(
 				description: typeof args.description === 'string' ? args.description : undefined,
 				prompt: typeof args.prompt === 'string' ? args.prompt : undefined,
 			});
-
 			const pendingCall: PendingTaskCall = {
 				agentType: args.subagent_type,
 				callId: pendingCallId({

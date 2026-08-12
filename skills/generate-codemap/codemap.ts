@@ -81,7 +81,6 @@ export async function selectFiles(
 	const excludeMatcher = new PatternMatcher(excludePatterns);
 	const gitignoreMatcher = new PatternMatcher(gitignorePatterns);
 	const exceptionSet = new Set(exceptions);
-
 	const glob = new Bun.Glob('**/*');
 	const selected: Array<string> = [];
 
@@ -211,13 +210,11 @@ async function buildState(
 	selectedFiles: Array<string>,
 ): Promise<{ state: CodemapState; folders: Set<string> }> {
 	const fileHashes: Record<string, string> = {};
-
 	// Compute hashes concurrently for massive speedup in Bun
 	const hashPromises = selectedFiles.map(async (relPath) => {
 		const hash = await computeFileHash(root, relPath);
 		return [relPath, hash] as const;
 	});
-
 	const results = await Promise.all(hashPromises);
 	for (const [relPath, hash] of results) fileHashes[relPath] = hash;
 
@@ -303,7 +300,6 @@ export async function cmdChanges(options: CommandOptions & { root: string }): Pr
 	const excludePatterns = metadata.exclude_patterns ?? [];
 	const exceptions = metadata.exceptions ?? [];
 	const gitignore = await loadGitignore(resolvedRoot);
-
 	const currentFiles = await selectFiles(
 		resolvedRoot,
 		includePatterns,
@@ -311,18 +307,15 @@ export async function cmdChanges(options: CommandOptions & { root: string }): Pr
 		exceptions,
 		gitignore,
 	);
-
 	const hashPromises = currentFiles.map(async (relPath) => {
 		const hash = await computeFileHash(resolvedRoot, relPath);
 		return [relPath, hash] as const;
 	});
 	const results = await Promise.all(hashPromises);
 	const currentHashes = Object.fromEntries(results);
-
 	const savedHashes = state.file_hashes ?? {};
 	const currentPaths = new Set(Object.keys(currentHashes));
 	const savedPaths = new Set(Object.keys(savedHashes));
-
 	const added = [...currentPaths].filter((filePath) => !savedPaths.has(filePath)).sort();
 	const removed = [...savedPaths].filter((filePath) => !currentPaths.has(filePath)).sort();
 	const modified = [...currentPaths]
@@ -376,7 +369,6 @@ export async function cmdUpdate(options: CommandOptions & { root: string }): Pro
 	const excludePatterns = metadata.exclude_patterns ?? [];
 	const exceptions = metadata.exceptions ?? [];
 	const gitignore = await loadGitignore(resolvedRoot);
-
 	const selectedFiles = await selectFiles(
 		resolvedRoot,
 		includePatterns,
@@ -384,7 +376,6 @@ export async function cmdUpdate(options: CommandOptions & { root: string }): Pro
 		exceptions,
 		gitignore,
 	);
-
 	const { state: nextState } = await buildState(
 		resolvedRoot,
 		includePatterns,

@@ -42,11 +42,14 @@ async function completeTask(
 		{ callID: 'call-1', sessionID, tool: 'task' },
 		{ args: { description, subagent_type: 'explorer' } },
 	);
-	await after({ args: {}, callID: 'call-1', sessionID, tool: 'task' }, {
-		metadata: {},
-		output: taskOutput,
-		title: 'task',
-	} as never);
+	await after(
+		{ args: {}, callID: 'call-1', sessionID, tool: 'task' },
+		{
+			metadata: {},
+			output: taskOutput,
+			title: 'task',
+		},
+	);
 }
 
 test('injects resumable sessions after completed task', async () => {
@@ -106,16 +109,19 @@ test('tracks read context from child session', async () => {
 			type: 'session.created',
 		},
 	} as never);
-	await after({ args: {}, callID: 'read-1', sessionID: 'child-1', tool: 'read' }, {
-		metadata: {},
-		output: [
-			'<path>/tmp/src/index.ts</path>',
-			'<content>',
-			...Array.from({ length: 12 }, (_, index) => `${index + 1}: line`),
-			'</content>',
-		].join('\n'),
-		title: 'read',
-	} as never);
+	await after(
+		{ args: {}, callID: 'read-1', sessionID: 'child-1', tool: 'read' },
+		{
+			metadata: {},
+			output: [
+				'<path>/tmp/src/index.ts</path>',
+				'<content>',
+				...Array.from({ length: 12 }, (_, index) => `${index + 1}: line`),
+				'</content>',
+			].join('\n'),
+			title: 'read',
+		},
+	);
 
 	const messages = createMessage('parent-1');
 	await transform({}, messages as never);
