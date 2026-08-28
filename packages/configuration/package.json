@@ -1,0 +1,13 @@
+{
+	"name": "configuration",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"fix": "oxlint --silent --fix && oxfmt",
+		"check": "tsc && oxlint && oxfmt --check"
+	},
+	"devDependencies": {
+		"@hesprs/harness": "workspace:*"
+	}
+}

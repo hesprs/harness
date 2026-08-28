@@ -1,0 +1,17 @@
+{
+	"name": "@repo/shared",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": {
+			"default": "./src/*.ts",
+			"types": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"fix": "oxlint --silent --fix && oxfmt",
+		"check": "tsc && oxlint && oxfmt --check",
+		"tests": "bun test"
+	}
+}

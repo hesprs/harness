@@ -1,2 +1,11 @@
-node_modules
+**/node_modules
 **/dist
+**/.turbo
+.vscode
+packages/configuration/agent/auth.json
+packages/configuration/agent/npm
+packages/configuration/agent/sessions
+packages/configuration/agent/extensions
+packages/configuration/agent/models-store.json
+packages/configuration/agent/harness-state.json
+packages/configuration/agent/trust.json

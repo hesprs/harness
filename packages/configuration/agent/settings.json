@@ -1,0 +1,16 @@
+{
+  "npmCommand": [
+    "bun",
+    "--bun"
+  ],
+  "packages": [
+    "npm:pi-zentui"
+  ],
+  "lastChangelogVersion": "0.84.3",
+  "theme": "dark",
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-pro",
+  "defaultThinkingLevel": "off",
+  "hideThinkingBlock": false,
+  "tuiMode": "fullscreen"
+}

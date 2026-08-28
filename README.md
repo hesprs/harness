@@ -1,3 +1,9 @@
-# Blueprint Skills
+# The Ideal Harness
 
-Blueprint-based agent harness skill kit.
+`harness.config.ts` + multi-agent collaboration based on Pi.
+
+## Usage
+
+```sh
+ln -s "$PWD/packages/configuration" ~/.pi
+```

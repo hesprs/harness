@@ -1,0 +1,24 @@
+{
+	"$schema": "https://turborepo.dev/schema.json",
+	"ui": "stream",
+	"noUpdateNotifier": true,
+	"concurrency": "100%",
+	"tasks": {
+		"compile": {
+			"dependsOn": ["^compile"],
+			"env": ["GDRIVE_CLIENT_ID", "GDRIVE_CLIENT_SECRET"],
+			"outputs": ["dist/**"],
+			"cache": true
+		},
+		"fix": {
+			"dependsOn": [],
+			"cache": true
+		},
+		"check": {
+			"cache": true
+		},
+		"tests": {
+			"cache": true
+		}
+	}
+}

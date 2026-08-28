@@ -1,0 +1,16 @@
+{
+	"name": "harness",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"fix": "oxlint --silent --fix && oxfmt",
+		"check": "tsc && oxlint && oxfmt --check",
+		"tests": "bun test",
+		"compile": "bun --bun tsdown"
+	},
+	"devDependencies": {
+		"@repo/shared": "workspace:*",
+		"synthkernel": "./synthkernel.tgz"
+	}
+}
