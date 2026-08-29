@@ -94,7 +94,7 @@ export const toolSearch: Extension = (pi) => {
 	registerActive(
 		pi,
 		defineTool({
-			description: "Semantic web search via Exa.",
+			description: 'Semantic web search via Exa.',
 			async execute(_toolCallId, params) {
 				try {
 					return text(await searchExa({ count: params.count, query: params.query }));

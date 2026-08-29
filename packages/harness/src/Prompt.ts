@@ -37,7 +37,7 @@ function skillsSection(ctx: PromptContext): string | undefined {
 
 /** Render one talkable session as a prompt entry. */
 export function talkableEntry(s: TalkableSession): string {
-	return `### \`${s.id}\`\n\n- Agent: ${s.agent}\n- Relationship: ${s.relationship}${s.recordPath === undefined ? '' : `\n- Footage: \`${s.recordPath}\``}${s.note ? `\n- Note:\n\n${s.note}` : ''}`;
+	return `### \`${s.id}\`\n\n- Agent: ${s.agent}\n- Relationship: ${s.relationship}${s.recordPath ? `\n- Footage: \`${s.recordPath}\`` : ''}${s.note ? `\n- Note:\n\n${s.note}` : ''}`;
 }
 
 export default class Prompt {
@@ -51,9 +51,9 @@ export default class Prompt {
 		const ordered = [...this.sections].sort((a, b) => a.priority - b.priority);
 		const parts: Array<string> = [];
 		for (const { render, title } of ordered) {
-			const body = await render(ctx);
-			if (body === undefined || body === '') continue;
-			parts.push(title === undefined ? body : `## ${title}\n\n${body}`);
+			const body = (await render(ctx))?.trim();
+			if (!body) continue;
+			parts.push(title ? body : `## ${title}\n\n${body.trim()}`);
 		}
 		return parts.join('\n\n');
 	};

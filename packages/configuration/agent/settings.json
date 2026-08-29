@@ -1,16 +1,11 @@
 {
-  "npmCommand": [
-    "bun",
-    "--bun"
-  ],
-  "packages": [
-    "npm:pi-zentui"
-  ],
-  "lastChangelogVersion": "0.84.3",
-  "theme": "dark",
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-pro",
-  "defaultThinkingLevel": "off",
-  "hideThinkingBlock": false,
-  "tuiMode": "fullscreen"
+	"npmCommand": ["bun", "--bun"],
+	"packages": ["npm:pi-zentui"],
+	"lastChangelogVersion": "0.84.3",
+	"theme": "dark",
+	"defaultProvider": "zai",
+	"defaultModel": "glm-5.3",
+	"defaultThinkingLevel": "high",
+	"hideThinkingBlock": false,
+	"tuiMode": "fullscreen"
 }

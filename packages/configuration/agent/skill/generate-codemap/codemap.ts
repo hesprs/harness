@@ -40,10 +40,10 @@ export class PatternMatcher {
 
 		const regexParts = patterns.map((pattern) => {
 			let reg = pattern.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
-			reg = reg.replaceAll(/\\\*\\\*\//gu, '(?:.*/)?');
-			reg = reg.replaceAll(/\\\*\\\*/gu, '.*');
-			reg = reg.replaceAll(/\\\*/gu, '[^/]*');
-			reg = reg.replaceAll(/\\\?/gu, '.');
+			reg = reg.replaceAll(String.raw`\*\*/`, '(?:.*/)?');
+			reg = reg.replaceAll(String.raw`\*\*`, '.*');
+			reg = reg.replaceAll(String.raw`\*`, '[^/]*');
+			reg = reg.replaceAll(String.raw`\?`, '.');
 			if (pattern.endsWith('/')) reg += '.*';
 			reg = pattern.startsWith('/') ? `^${reg.slice(1)}` : `(?:^|.*/)${reg}`;
 			return `(?:${reg}$)`;
