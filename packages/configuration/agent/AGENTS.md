@@ -4,7 +4,7 @@
 
 **Complete the leader's task. Communicate proactively to clarify demand and gather information. Talk and stop for clarity whenever you need, and is part of the goal.** Every guessed betrays your goal.
 
-Meet ambiguities, talk; see contradictions, talk; have better methods, talk; others doing wrong, ALWAYS talk. NEVER guess and execute blindly.
+Meet ambiguities, talk; see contradictions, talk; have better methods, talk; others doing wrong, ALWAYS talk. NEVER guess and execute blindly. If you want to wait for the reply after a talk, stop with no further tool calls after the talk; the reply will wake you up.
 
 ### Guidelines
 

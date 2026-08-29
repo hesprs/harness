@@ -14,10 +14,10 @@
 	"components": {
 		"editor": {
 			"enabled": true,
-			"style": "opencode",
-			"colorSource": "terminal",
+			"style": "minimalist",
+			"colorSource": "theme",
 			"borderColorMode": "static",
-			"modelLabel": "id",
+			"modelLabel": "name",
 			"viewportIndicators": true,
 			"styles": {
 				"opencode": {
@@ -35,12 +35,12 @@
 				},
 				"minimalist": {
 					"pathDisplay": "compact",
-					"contextFormat": "percent",
+					"contextFormat": "percent-total",
 					"contextGauge": false,
-					"showSessionName": true,
-					"showTimer": true,
-					"showCost": true,
-					"showGit": true,
+					"showSessionName": false,
+					"showTimer": false,
+					"showCost": false,
+					"showGit": false,
 					"contextThresholds": {
 						"warning": 70,
 						"error": 90
@@ -50,8 +50,8 @@
 		},
 		"userMessages": {
 			"enabled": true,
-			"style": "framed",
-			"colorSource": "terminal",
+			"style": "labeled",
+			"colorSource": "theme",
 			"styles": {
 				"framed": {},
 				"framed-copy-friendly": {},
@@ -99,12 +99,12 @@
 		"selectorBorders": {
 			"enabled": true,
 			"style": "zentui",
-			"colorSource": "terminal"
+			"colorSource": "theme"
 		},
 		"footer": {
 			"style": "starship",
-			"colorSource": "terminal",
-			"modelLabel": "id",
+			"colorSource": "theme",
+			"modelLabel": "name",
 			"styles": {
 				"starship": {
 					"format": "",
@@ -122,16 +122,16 @@
 						"depth": 0
 					},
 					"segments": {
-						"cwd": true,
-						"sessionName": true,
+						"cwd": false,
+						"sessionName": false,
 						"gitBranch": true,
-						"gitStatus": true,
+						"gitStatus": false,
 						"gitCounts": false,
 						"gitCommit": false,
-						"gitMetrics": false,
+						"gitMetrics": true,
 						"runtime": true,
 						"modelInfo": false,
-						"context": true,
+						"context": false,
 						"tokens": true,
 						"cost": true,
 						"sessionDuration": false,
@@ -155,10 +155,15 @@
 					"extensionStatuses": {
 						"defaultPlacement": "right",
 						"placements": {},
-						"colorModes": {}
+						"colorModes": {
+							"harness": "zentui"
+						}
 					}
 				}
 			}
 		}
+	},
+	"icons": {
+		"mode": "auto"
 	}
 }
