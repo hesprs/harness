@@ -65,14 +65,14 @@ function identitySection(ctx: {
 	topicPath?: string;
 }): string {
 	const lines = [`Application session: \`${ctx.appFolder}\``, `Your ID: \`${ctx.sessionId}\``];
-	if (ctx.topicPath !== undefined) lines.push(`Topic: \`${ctx.topicPath}\``);
+	if (ctx.topicPath) lines.push(`Topic: \`${ctx.topicPath}\``);
 	return lines.join('\n');
 }
 
 /** Turn clock: rendered into every per-LLM-call reminder message. */
 function clockSection(ctx: { now: Date; lastInvocation?: Date }): string {
 	const lines = [`Current date: \`${ctx.now.toISOString()}\``];
-	if (ctx.lastInvocation !== undefined) {
+	if (ctx.lastInvocation) {
 		const seconds = Math.round((ctx.now.getTime() - ctx.lastInvocation.getTime()) / 1000);
 		lines.push(`Time since last invocation: ${seconds} seconds`);
 	}
@@ -88,16 +88,28 @@ async function topicSection(ctx: { topicPath?: string }): Promise<string> {
 	}
 }
 
-async function noteSection(ctx: {
+function noteDynamic({
+	appFolder,
+	sessionId,
+}: {
+	appFolder: string;
+	sessionId: string;
+}): Promise<string> {
+	return Bun.file(join(appFolder, `${sessionId}.md`))
+		.text()
+		.catch(() => '');
+}
+
+function noteSection({
+	appFolder,
+	sessionId,
+	canEditNote,
+}: {
 	appFolder: string;
 	sessionId: string;
 	canEditNote: boolean;
-}): Promise<string> {
-	const notePath = join(ctx.appFolder, `${ctx.sessionId}.md`);
-	const content = await Bun.file(notePath)
-		.text()
-		.catch(() => '');
-	return `Personal note is at \`${notePath}\`.${ctx.canEditNote ? ' You can edit this note with your file tools; use it for TODOs and handoff notes; the note manifests what you are doing to other agents.' : ''} ${content ? `Note content:\n\n${content}` : 'Note is currently empty.'}`;
+}): string {
+	return `Your personal note is at \`${join(appFolder, `${sessionId}.md`)}\`.${canEditNote ? ' You can edit this note with your file tools; use it for TODOs; the note manifests what you are doing to other agents.' : ''}`;
 }
 
 export default class Sessions {
@@ -365,14 +377,20 @@ export default class Sessions {
 		ctx.registerSection({
 			priority: 200,
 			render: topicSection,
-			tier: 'system',
+			tier: 'conditional',
 			title: 'Topic Context',
 		});
 		ctx.registerSection({
 			priority: 300,
 			render: noteSection,
-			tier: 'periodic',
+			tier: 'system',
 			title: 'Personal Note',
+		});
+		ctx.registerSection({
+			priority: 300,
+			render: noteDynamic,
+			tier: 'periodic',
+			title: 'Personal Note Content',
 		});
 		ctx.registerSection({
 			priority: 500,
