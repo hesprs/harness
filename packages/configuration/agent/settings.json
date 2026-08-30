@@ -1,23 +1,28 @@
 {
-	"npmCommand": ["bun", "--bun"],
-	"packages": ["npm:pi-zentui"],
-	"lastChangelogVersion": "0.84.3",
-	"theme": "vivid",
-	"defaultProvider": "zai",
-	"defaultModel": "glm-5.3",
-	"defaultThinkingLevel": "high",
-	"hideThinkingBlock": false,
-	"tuiMode": "fullscreen",
-	"terminal": {
-		"showTerminalProgress": true
-	},
-	"steeringMode": "all",
-	"compaction": {
-		"enabled": true
-	},
-	"showHardwareCursor": false,
-	"followUpMode": "all",
-	"collapseChangelog": true,
-	"enableInstallTelemetry": false,
-	"quietStartup": false
+  "npmCommand": [
+    "bun",
+    "--bun"
+  ],
+  "packages": [
+    "npm:pi-zentui"
+  ],
+  "lastChangelogVersion": "0.84.3",
+  "theme": "vivid",
+  "defaultProvider": "zai",
+  "defaultModel": "glm-5.3",
+  "defaultThinkingLevel": "high",
+  "hideThinkingBlock": false,
+  "tuiMode": "fullscreen",
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "steeringMode": "all",
+  "compaction": {
+    "enabled": true
+  },
+  "showHardwareCursor": false,
+  "followUpMode": "all",
+  "collapseChangelog": true,
+  "enableInstallTelemetry": false,
+  "quietStartup": false
 }

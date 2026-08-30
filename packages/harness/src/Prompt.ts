@@ -13,8 +13,6 @@ import type { TalkableSession } from '@/model';
 
 export type PromptContext = {
 	now: Date;
-	/** Previous LLM call time; omitted before the first call. */
-	lastInvocation?: Date;
 	sessionId: string;
 	agent: string;
 	appFolder: string;
@@ -60,7 +58,7 @@ export default class Prompt {
 	/** One tier's sections for one agent, priority-ordered. */
 	private readonly tierFor = (tier: PromptTier, agent: string): Array<PromptSection> =>
 		this.sections
-			.filter((s) => s.tier === tier && (s.agents === undefined || s.agents.includes(agent)))
+			.filter((s) => s.tier === tier && (!s.agents || s.agents.includes(agent)))
 			.toSorted((a, b) => a.priority - b.priority);
 
 	private readonly renderTier = async (tier: PromptTier, ctx: PromptContext): Promise<string> => {

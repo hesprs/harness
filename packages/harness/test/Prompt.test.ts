@@ -89,35 +89,30 @@ test('composition: Sessions and Agents sections render per tier', async () => {
 			...baseCtx,
 			appFolder: binding.appFolder,
 			canEditNote: true,
-			lastInvocation: new Date('2025-01-02T03:02:45Z'),
 			sessionId: binding.sessionId,
 		};
 		const system = await prompt.root.render(ctx);
 		expect(system).toContain(binding.appFolder); // Identity
 		expect(system).toContain(binding.sessionId);
+		expect(system).toContain('Current date: Jan 2, 2025');
 		expect(system).toContain('## Instructions');
 		expect(system).toContain('Be terse.');
-		expect(system).not.toContain('## Personal Note');
-		expect(system).not.toContain('Current date'); // Clock lives in the turn tier
-
-		const turn = await prompt.root.reminder(ctx, 'turn');
-		expect(turn).toContain('2025-01-02T03:04:05');
-		expect(turn).toContain('80 seconds');
+		expect(system).toContain('## Personal Note');
+		expect(system).toContain('edit'); // Note-editing instruction when canEditNote
 
 		const conditional = await prompt.root.reminder(ctx, 'conditional');
 		expect(conditional).toContain('## Other Agents (Talkable)');
 		expect(conditional).toContain(LEADER_ID);
 
 		const periodic = await prompt.root.reminder(ctx, 'periodic');
-		expect(periodic).toContain('## Personal Note');
+		expect(periodic).toContain('## Personal Note Content');
 		expect(periodic).toContain('my todo');
-		expect(periodic).toContain('edit'); // Note-editing instruction when canEditNote
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
 });
 
-test('topic section renders path and content when the session belongs to a topic', async () => {
+test('topic identity renders in the system prompt and its content in the conditional tier', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'harness-prompt-topic-'));
 	try {
 		const prompt = new Prompt();
@@ -130,15 +125,17 @@ test('topic section renders path and content when the session belongs to a topic
 			piSessionId: 'pi-1',
 			topic,
 		});
-		const out = await prompt.root.render({
+		const ctx = {
 			...baseCtx,
 			appFolder: binding.appFolder,
 			sessionId: binding.sessionId,
 			topicPath: topic,
-		});
-		expect(out).toContain(`Topic: \`${topic}\``);
-		expect(out).toContain('## Topic Context');
-		expect(out).toContain('# The Plan');
+		};
+		const system = await prompt.root.render(ctx);
+		expect(system).toContain(`Topic: \`${topic}\``);
+		const conditional = await prompt.root.reminder(ctx, 'conditional');
+		expect(conditional).toContain('## Topic Context');
+		expect(conditional).toContain('# The Plan');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}

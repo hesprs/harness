@@ -2,14 +2,17 @@ import type { Extension } from '@repo/shared/contract';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 /**
  * Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named
- * extension tool wins in Pi's tool registry). Matching runs three passes,
- * in order: exact, whitespace/indentation-flexible, and escape-normalized.
- * Every pass returns text that exists in the file, so a replacement always
- * targets real content — never the query.
+ * extension tool wins in Pi's tool registry). Matching first tries the
+ * exact substring, then a whitespace-less, escape-agnostic pass: every
+ * whitespace character — including its literal `\n`/`\t` spelling — is
+ * stripped from both sides, literal `\\`/`\"`/`\'` count as their real
+ * characters, and a fuzzy match always replaces whole lines of real file
+ * text — never the query.
  *
  * An ambiguous match fails with 1-indexed line numbers instead of guessing;
- * `replaceAll` opts into every occurrence instead. All edits in one call
- * match the original content (not incrementally) and apply bottom-up.
+ * the top-level `replaceAll` opts into every occurrence instead. All edits
+ * in one call match the original content (not incrementally) and apply
+ * bottom-up.
  */
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
@@ -19,82 +22,62 @@ import { registerActive } from './common.ts';
 export type EditInput = {
 	newText: string;
 	oldText: string;
-	replaceAll?: boolean;
 };
 
-/** Line fingerprint for the flexible pass: order-preserving whitespace
- * collapse — indentation, inner runs, and trailing whitespace all vanish. */
-const fingerprint = (line: string): string => line.trim().replaceAll(/\s+/gu, ' ');
+/** Whitespace-less, escape-agnostic normalization: every whitespace
+ * character — including its literal `\n`/`\t` spelling — vanishes, while
+ * literal `\\`/`\"`/`\'` become their real characters. `indices[i]` is the
+ * source offset of chunk character `i`. */
+function normalizeChunks(source: string): { chunks: string; indices: Array<number> } {
+	const unescapes: Record<string, string> = { '"': '"', "'": "'", '\\': '\\', n: '\n', t: '\t' };
+	const chars: Array<string> = [];
+	const indices: Array<number> = [];
+	for (let i = 0; i < source.length; i++) {
+		const unescaped = source[i] === '\\' ? unescapes[source[i + 1] ?? ''] : undefined;
+		if (unescaped !== undefined) i++;
+		if (/\s/u.test(unescaped ?? source[i] ?? '')) continue;
+		chars.push(unescaped ?? source[i] ?? '');
+		indices.push(i);
+	}
+	return { chunks: chars.join(''), indices };
+}
 
-/** 1-indexed line numbers of every occurrence of `needle` in `content`. */
-function occurrenceLines(content: string, needle: string): Array<number> {
-	const lines: Array<number> = [];
-	let at = content.indexOf(needle);
+/** Every occurrence of `oldText` as real-text spans: the exact substring
+ * when present, else the line-expanded whitespace/escape-agnostic match. */
+function resolveSpans(
+	content: string,
+	oldText: string,
+): { spans?: Array<{ end: number; start: number }>; failure?: string } {
+	if (content.includes(oldText)) {
+		const spans: Array<{ end: number; start: number }> = [];
+		let at = content.indexOf(oldText);
+		while (at !== -1) {
+			spans.push({ end: at + oldText.length, start: at });
+			at = content.indexOf(oldText, at + 1);
+		}
+		return { spans };
+	}
+	const { chunks, indices } = normalizeChunks(content);
+	const query = normalizeChunks(oldText).chunks;
+	if (!query) return { failure: 'oldText is empty once whitespace is removed' };
+	const hits: Array<number> = [];
+	let at = chunks.indexOf(query);
 	while (at !== -1) {
-		lines.push(content.slice(0, at).split('\n').length);
-		at = content.indexOf(needle, at + 1);
+		hits.push(at);
+		at = chunks.indexOf(query, at + 1);
 	}
-	return lines;
-}
-
-/** Pass 2: match non-blank lines by fingerprint, skipping blank lines on
- * either side — tolerates indentation drift, whitespace runs, and
- * blank-line differences. Returns the real file text of the match. */
-function findFlexible(content: string, oldText: string): string | undefined {
-	const oldLines = oldText
-		.split('\n')
-		.filter((line) => line.trim() !== '')
-		.map(fingerprint);
-	const firstOld = oldLines[0];
-	if (firstOld === undefined) return undefined;
-	const lines = content.split('\n');
-	for (let i = 0; i < lines.length; i++) {
-		if (fingerprint(lines[i] ?? '') !== firstOld) continue;
-		let matched = 1;
-		let last = i;
-		for (let j = i + 1; j < lines.length && matched < oldLines.length; j++) {
-			const line = lines[j] ?? '';
-			if (line.trim() === '') continue; // Blank lines come and go
-			if (fingerprint(line) !== oldLines[matched]) break;
-			last = j;
-			matched++;
-		}
-		if (matched === oldLines.length) {
-			const actual = lines.slice(i, last + 1).join('\n');
-			if (content.includes(actual)) return actual;
-		}
-	}
-	return undefined;
-}
-
-/** Pass 3: the model wrote literal `\n`/`\t`/`\\`/`\"`/`\'` where the file
- * has the real characters. */
-function findEscaped(content: string, oldText: string): string | undefined {
-	const unescaped = oldText
-		.replaceAll(String.raw`\n`, '\n')
-		.replaceAll(String.raw`\t`, '\t')
-		.replaceAll(String.raw`\\`, '\\')
-		.replaceAll(String.raw`\"`, '"')
-		.replaceAll(String.raw`\'`, "'");
-	if (unescaped === oldText) return undefined;
-	return content.includes(unescaped) ? unescaped : undefined;
-}
-
-/** Resolve one edit's real target text, or a failure message for a retry. */
-function resolveActual(content: string, edit: EditInput): { actual: string } | { failure: string } {
-	const actual = content.includes(edit.oldText)
-		? edit.oldText
-		: (findFlexible(content, edit.oldText) ?? findEscaped(content, edit.oldText));
-	if (actual === undefined)
-		return { failure: 'oldText not found: no exact, whitespace-flexible, or escaped match' };
-
-	const lines = occurrenceLines(content, actual);
-	if (lines.length > 1 && edit.replaceAll !== true)
-		return {
-			failure: `oldText is ambiguous: matches at line(s) ${lines.join(', ')} — add surrounding context or set replaceAll`,
-		};
-
-	return { actual };
+	if (!hits.length)
+		return { failure: 'oldText not found: no exact or whitespace/escape-agnostic match' };
+	const lineEnd = (offset: number): number => {
+		const newline = content.indexOf('\n', offset);
+		return newline === -1 ? content.length : newline;
+	};
+	return {
+		spans: hits.map((hit) => ({
+			end: lineEnd(indices[hit + query.length - 1] as number),
+			start: content.lastIndexOf('\n', indices[hit] as number) + 1,
+		})),
+	};
 }
 
 type Span = { end: number; replacement: string; start: number };
@@ -157,6 +140,7 @@ export function diffSpans(before: string, spans: Array<Span>, context = 4): stri
 export function applyEdits(
 	content: string,
 	edits: Array<EditInput>,
+	replaceAll = false,
 ): {
 	content: string;
 	diff?: string;
@@ -164,23 +148,24 @@ export function applyEdits(
 } {
 	const spans: Array<Span> = [];
 	for (const edit of edits) {
-		const resolved = resolveActual(content, edit);
-		if ('failure' in resolved) return { content, failure: resolved.failure };
-		if (resolved.actual === edit.newText)
+		const resolved = resolveSpans(content, edit.oldText);
+		if (resolved.failure) return { content, failure: resolved.failure };
+		const found = resolved.spans ?? [];
+		if (found.length > 1 && !replaceAll)
 			return {
 				content,
-				failure: 'an edit replaces the matched text with itself — no change',
+				failure: `oldText is ambiguous: matches at lines ${found
+					.map((span) => content.slice(0, span.start).split('\n').length)
+					.join(', ')} — add surrounding context or set replaceAll`,
 			};
-
-		const starts: Array<number> = [];
-		let at = content.indexOf(resolved.actual);
-		while (at !== -1) {
-			starts.push(at);
-			if (edit.replaceAll !== true) break;
-			at = content.indexOf(resolved.actual, at + 1);
+		for (const span of found) {
+			if (content.slice(span.start, span.end) === edit.newText)
+				return {
+					content,
+					failure: 'an edit replaces the matched text with itself — no change',
+				};
+			spans.push({ end: span.end, replacement: edit.newText, start: span.start });
 		}
-		for (const start of starts)
-			spans.push({ end: start + resolved.actual.length, replacement: edit.newText, start });
 	}
 	spans.sort((a, b) => a.start - b.start);
 	for (let i = 1; i < spans.length; i++) {
@@ -203,6 +188,7 @@ export function applyEdits(
 export async function editFile(
 	path: string,
 	edits: Array<EditInput>,
+	replaceAll = false,
 ): Promise<{ diff?: string; failure?: string }> {
 	// Bun.file().text() strips a leading BOM — decode with it kept.
 	const raw = new TextDecoder('utf-8', { ignoreBOM: true }).decode(await Bun.file(path).bytes());
@@ -210,8 +196,8 @@ export async function editFile(
 	const content = bom === '' ? raw : raw.slice(1);
 	const crlf = content.includes('\r\n');
 	const normalized = crlf ? content.replaceAll('\r\n', '\n') : content;
-	const applied = applyEdits(normalized, edits);
-	if (applied.failure !== undefined) return { failure: applied.failure };
+	const applied = applyEdits(normalized, edits, replaceAll);
+	if (applied.failure) return { failure: applied.failure };
 	const finalText = crlf ? applied.content.replaceAll('\n', '\r\n') : applied.content;
 	await Bun.write(path, bom + finalText);
 	return { diff: applied.diff };
@@ -221,13 +207,8 @@ const editItemSchema = Type.Object({
 	newText: Type.String({ description: 'Replacement text.' }),
 	oldText: Type.String({
 		description:
-			'Text to find. Whitespace and indentation may drift, but the text must be unique in the file unless replaceAll is set.',
+			'Text to find. Whitespace, indentation, line breaks, and literal escapes may drift, but the text must be unique in the file unless replaceAll is set.',
 	}),
-	replaceAll: Type.Optional(
-		Type.Boolean({
-			description: 'Replace every occurrence instead of failing on ambiguity.',
-		}),
-	),
 });
 
 // Extension that registers the fuzzy `edit` tool, overriding Pi's built-in.
@@ -239,7 +220,11 @@ export const toolEdit: Extension = (pi) => {
 				'Edit a file by targeted text replacement. Each edit is matched against the original file, oldText should match file content. For ambiguous oldText (many matches), add surrounding context or set replaceAll. Use this and NEVER use Python or Bash to edit files.',
 			async execute(_toolCallId, params) {
 				try {
-					const outcome = await editFile(params.path, params.edits);
+					const outcome = await editFile(
+						params.path,
+						params.edits,
+						params.replaceAll === true,
+					);
 					if (outcome.failure) return text(`${outcome.failure} (${params.path})`, true);
 					return {
 						content: [
@@ -264,6 +249,11 @@ export const toolEdit: Extension = (pi) => {
 				path: Type.String({
 					description: 'Path to the file to edit (relative or absolute).',
 				}),
+				replaceAll: Type.Optional(
+					Type.Boolean({
+						description: 'Replace every occurrence instead of failing on ambiguity.',
+					}),
+				),
 			}),
 		}),
 	);

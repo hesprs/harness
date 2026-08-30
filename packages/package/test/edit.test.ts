@@ -32,22 +32,42 @@ test('literal escapes match real characters', () => {
 
 test('ambiguous oldText fails with line numbers', () => {
 	const result = applyEdits('x\nx\n', [{ newText: 'y', oldText: 'x' }]);
-	expect(result.failure).toContain('line(s) 1, 2');
+	expect(result.failure).toContain('matches at lines 1, 2');
 	expect(result.content).toBe('x\nx\n'); // Nothing written on failure
 });
 
 test('replaceAll replaces every occurrence', () => {
-	const result = applyEdits('x\nm\nx\n', [{ newText: 'y', oldText: 'x', replaceAll: true }]);
+	const result = applyEdits('x\nm\nx\n', [{ newText: 'y', oldText: 'x' }], true);
 	expect(result.failure).toBeUndefined();
 	expect(result.content).toBe('y\nm\ny\n');
 });
 
 test('replaceAll replaces every occurrence of a fuzzy match', () => {
-	const result = applyEdits('\tx\n\ty\nm\n\tx\n\ty\n', [
-		{ newText: 'z', oldText: 'x\ny', replaceAll: true },
-	]);
+	const result = applyEdits('\tx\n\ty\nm\n\tx\n\ty\n', [{ newText: 'z', oldText: 'x\ny' }], true);
 	expect(result.failure).toBeUndefined();
 	expect(result.content).toBe('z\nm\nz\n');
+});
+
+test('line-merged and line-split oldText still match whole lines', () => {
+	expect(
+		applyEdits('const a = 1;\nconst b = 2;\n', [
+			{ newText: 'X', oldText: 'const a = 1; const b = 2;' },
+		]).content,
+	).toBe('X\n');
+	expect(applyEdits('foo bar\n', [{ newText: 'X', oldText: 'foo\nbar' }]).content).toBe('X\n');
+});
+
+test('a partial-line oldText with inner whitespace drift matches its whole line', () => {
+	const result = applyEdits('const x = 1; // note\n', [
+		{ newText: 'y', oldText: 'const  x = 1;' },
+	]);
+	expect(result.failure).toBeUndefined();
+	expect(result.content).toBe('y\n');
+});
+
+test('a whitespace-only oldText fails explicitly', () => {
+	const result = applyEdits('a\n', [{ newText: 'y', oldText: ' \n\t ' }]);
+	expect(result.failure).toContain('whitespace');
 });
 
 test('multiple edits match the original content, not incrementally', () => {
@@ -76,7 +96,7 @@ test('an edit identical to its match fails as a no-op', () => {
 test('no match reports the tried passes', () => {
 	const result = applyEdits('a\n', [{ newText: 'z', oldText: 'missing' }]);
 	expect(result.failure).toContain('not found');
-	expect(result.failure).toContain('escaped');
+	expect(result.failure).toContain('agnostic');
 });
 
 test('editFile writes the change and round-trips CRLF endings', async () => {

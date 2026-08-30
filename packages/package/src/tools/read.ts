@@ -3,7 +3,8 @@ import { defineTool } from '@earendil-works/pi-coding-agent';
 /**
  * Read tool implementation: numbered file content with line range and
  * regex filtering, directory listing (line count, size, or `folder`,
- * optionally recursive), PDF → markdown extraction.
+ * optionally recursive), PDF → markdown extraction, binary images as
+ * base64 image blocks.
  */
 import { extractPagesMarkdown } from '@firecrawl/pdf-inspector';
 import { text } from '@repo/shared/text';
@@ -15,6 +16,8 @@ import { registerActive } from './common.ts';
 
 export type ReadResult = {
 	content: string;
+	/** Base64 image payload when the path is a binary image file. */
+	image?: { data: string; mimeType: string };
 	isError?: boolean;
 };
 
@@ -37,6 +40,16 @@ export function pdfToMarkdown(buffer: Buffer): string {
 		.pages.map((page) => page.markdown)
 		.join('\n\n');
 }
+
+/** Binary image file extensions → MIME types (returned as base64 image blocks). */
+const IMAGE_MIME: Record<string, string> = {
+	'.bmp': 'image/bmp',
+	'.gif': 'image/gif',
+	'.jpeg': 'image/jpeg',
+	'.jpg': 'image/jpeg',
+	'.png': 'image/png',
+	'.webp': 'image/webp',
+};
 
 const compileFilter = (pattern: string | undefined): RegExp | undefined =>
 	pattern === undefined ? undefined : new RegExp(pattern, 'u');
@@ -101,7 +114,8 @@ export function numberLines(content: string, options: ReadOptions = {}): string 
 }
 
 /** Read a file (numbered, ranged, filtered; PDFs are extracted to markdown
- * first) or a directory (see listDirectory). */
+ * first; binary images become base64 image blocks) or a directory (see
+ * listDirectory). */
 export async function readPath(path: string, options: ReadOptions = {}): Promise<ReadResult> {
 	let isDirectory: boolean;
 	try {
@@ -111,8 +125,19 @@ export async function readPath(path: string, options: ReadOptions = {}): Promise
 	}
 	try {
 		if (isDirectory) return { content: await listDirectory(path, options) };
+		const ext = extname(path).toLowerCase();
+		if (ext in IMAGE_MIME) {
+			const mimeType = IMAGE_MIME[ext] as string;
+			return {
+				content: `Read image file [${mimeType}]`,
+				image: {
+					data: Buffer.from(await Bun.file(path).arrayBuffer()).toString('base64'),
+					mimeType,
+				},
+			};
+		}
 		const raw =
-			extname(path).toLowerCase() === '.pdf'
+			ext === '.pdf'
 				? pdfToMarkdown(Buffer.from(await Bun.file(path).arrayBuffer()))
 				: await Bun.file(path).text();
 		return { content: numberLines(raw, options) };
@@ -130,7 +155,7 @@ export const toolRead: Extension = (pi) => {
 		pi,
 		defineTool({
 			description:
-				'Read a file or a directory. PDFs are extracted to markdown. Optional params: start/end line range (files); recursive listing (folders); a filter regex keeping on matching lines/paths (universal). Use this and NEVER use Bash to read files or list directories.',
+				'Read a file or a directory. Can read images; PDFs are extracted to markdown; reading directories lists files. Use this and NEVER use Bash to read files or list directories.',
 			async execute(_toolCallId, params) {
 				const result = await readPath(params.path, {
 					end: params.end,
@@ -138,6 +163,18 @@ export const toolRead: Extension = (pi) => {
 					recursive: params.recursive,
 					start: params.start,
 				});
+				if (result.image)
+					return {
+						content: [
+							{ text: result.content, type: 'text' } as const,
+							{
+								data: result.image.data,
+								mimeType: result.image.mimeType,
+								type: 'image',
+							} as const,
+						],
+						details: undefined,
+					};
 				return text(result.content, result.isError === true);
 			},
 			label: 'Read',

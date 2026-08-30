@@ -32,8 +32,6 @@ type Instance = {
 	registered: boolean;
 	/** Agent whose definition is currently applied (adoption re-fires skip). */
 	appliedAgent: string | undefined;
-	/** Time of the previous LLM call (drives the turn reminder clock). */
-	lastInvocation: Date | undefined;
 	/** Last successful gated reminder append, per gated tier. */
 	gatedAt: { conditional: Date | undefined; periodic: Date | undefined };
 	/** Body of the last appended conditional reminder. */
@@ -66,7 +64,6 @@ export default function bootstrap(pi: ExtensionAPI, kernel: Kernel): void {
 		appliedAgent: undefined,
 		condBody: undefined,
 		gatedAt: { conditional: undefined, periodic: undefined },
-		lastInvocation: undefined,
 		piFile: undefined,
 		registered: false,
 		sessionId: undefined,
@@ -205,9 +202,6 @@ export default function bootstrap(pi: ExtensionAPI, kernel: Kernel): void {
 		canEditNote: canEditNote(),
 		now,
 		sessionId: instance.sessionId ?? '',
-		...(instance.lastInvocation === undefined
-			? {}
-			: { lastInvocation: instance.lastInvocation }),
 		...(instance.topic === undefined ? {} : { topicPath: instance.topic }),
 		systemPrompt: '', // The skills list lives in the system tier, not in reminders.
 	});
@@ -237,7 +231,6 @@ export default function bootstrap(pi: ExtensionAPI, kernel: Kernel): void {
 		if (instance.agent === '' || !instance.registered) return {}; // Pi-native turn
 		const now = new Date();
 		const ctx = reminderCtx(now);
-		instance.lastInvocation = now;
 		const parts: Array<string> = [];
 		const turn = await kernel.reminder(ctx, 'turn');
 		if (turn !== '') parts.push(turn);

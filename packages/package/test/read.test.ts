@@ -118,6 +118,22 @@ test('pdfToMarkdown extracts text from a PDF buffer', () => {
 	expect(md.toLowerCase()).toContain('extracted');
 });
 
+test('readPath returns a base64 image payload for a binary image', async () => {
+	const root = tmpRoot();
+	try {
+		// Minimal PNG byte sequence (magic header + payload).
+		const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
+		const file = join(root, 'pic.png');
+		await Bun.write(file, png);
+		const result = await readPath(file);
+		expect(result.image?.mimeType).toBe('image/png');
+		expect(result.image?.data).toBe(png.toString('base64'));
+		expect(result.content).toContain('image/png');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
 test('readPath reports missing paths as errors', async () => {
 	const result = await readPath('/nonexistent/harness-path');
 	expect(result.isError).toBe(true);

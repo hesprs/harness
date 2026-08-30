@@ -58,24 +58,30 @@ function bindingOf(folder: string, record: SessionRecord): SessionBinding {
 	};
 }
 
+const fmt = new Intl.DateTimeFormat('en-US', {
+	day: 'numeric',
+	month: 'short',
+	year: 'numeric',
+});
+
 /** Session identity: the static facts of this agent session. */
-function identitySection(ctx: {
+function identitySection({
+	appFolder,
+	sessionId,
+	topicPath,
+	now,
+}: {
 	appFolder: string;
 	sessionId: string;
 	topicPath?: string;
+	now: Date;
 }): string {
-	const lines = [`Application session: \`${ctx.appFolder}\``, `Your ID: \`${ctx.sessionId}\``];
-	if (ctx.topicPath) lines.push(`Topic: \`${ctx.topicPath}\``);
-	return lines.join('\n');
-}
-
-/** Turn clock: rendered into every per-LLM-call reminder message. */
-function clockSection(ctx: { now: Date; lastInvocation?: Date }): string {
-	const lines = [`Current date: \`${ctx.now.toISOString()}\``];
-	if (ctx.lastInvocation) {
-		const seconds = Math.round((ctx.now.getTime() - ctx.lastInvocation.getTime()) / 1000);
-		lines.push(`Time since last invocation: ${seconds} seconds`);
-	}
+	const lines = [
+		`Application session: \`${appFolder}\``,
+		`Your ID: \`${sessionId}\``,
+		`Current date: ${fmt.format(now)}`,
+	];
+	if (topicPath) lines.push(`Topic: \`${topicPath}\``);
 	return lines.join('\n');
 }
 
@@ -373,7 +379,6 @@ export default class Sessions {
 
 	constructor(ctx: { registerSection: (section: PromptSection) => void }) {
 		ctx.registerSection({ priority: 100, render: identitySection, tier: 'system' });
-		ctx.registerSection({ priority: 100, render: clockSection, tier: 'turn' });
 		ctx.registerSection({
 			priority: 200,
 			render: topicSection,
