@@ -12,7 +12,7 @@ import { defineTool } from '@earendil-works/pi-coding-agent';
  * An ambiguous match fails with 1-indexed line numbers instead of guessing;
  * the top-level `replaceAll` opts into every occurrence instead. All edits
  * in one call match the original content (not incrementally) and apply
- * bottom-up.
+ * bottom-up. Failures name the offending `edits[i]` index.
  */
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
@@ -80,7 +80,7 @@ function resolveSpans(
 	};
 }
 
-type Span = { end: number; replacement: string; start: number };
+type Span = { edit: number; end: number; replacement: string; start: number };
 
 /** A renderable diff (`+line`/`-line`/context hunks, pi's renderDiff format)
  * of the applied spans — the changed regions are known exactly, so no
@@ -147,14 +147,15 @@ export function applyEdits(
 	failure?: string;
 } {
 	const spans: Array<Span> = [];
-	for (const edit of edits) {
+	for (let i = 0; i < edits.length; i++) {
+		const edit = edits[i] as EditInput;
 		const resolved = resolveSpans(content, edit.oldText);
-		if (resolved.failure) return { content, failure: resolved.failure };
+		if (resolved.failure) return { content, failure: `edits[${i}]: ${resolved.failure}` };
 		const found = resolved.spans ?? [];
 		if (found.length > 1 && !replaceAll)
 			return {
 				content,
-				failure: `oldText is ambiguous: matches at lines ${found
+				failure: `edits[${i}]: oldText is ambiguous: matches at lines ${found
 					.map((span) => content.slice(0, span.start).split('\n').length)
 					.join(', ')} — add surrounding context or set replaceAll`,
 			};
@@ -162,17 +163,20 @@ export function applyEdits(
 			if (content.slice(span.start, span.end) === edit.newText)
 				return {
 					content,
-					failure: 'an edit replaces the matched text with itself — no change',
+					failure: `edits[${i}]: an edit replaces the matched text with itself — no change`,
 				};
-			spans.push({ end: span.end, replacement: edit.newText, start: span.start });
+			spans.push({ edit: i, end: span.end, replacement: edit.newText, start: span.start });
 		}
 	}
 	spans.sort((a, b) => a.start - b.start);
 	for (let i = 1; i < spans.length; i++) {
 		const prev = spans[i - 1];
 		const curr = spans[i];
-		if (prev !== undefined && curr !== undefined && curr.start < prev.end)
-			return { content, failure: 'edits overlap — merge them into one edit' };
+		if (prev && curr && curr.start < prev.end)
+			return {
+				content,
+				failure: `edits[${prev.edit}] and edits[${curr.edit}] overlap — merge them into one edit`,
+			};
 	}
 	let result = content;
 	for (const span of spans.toReversed())

@@ -1,7 +1,8 @@
 import type { Extension } from '@repo/shared/contract';
 /**
  * Fetch tool: single-URL GET, `extract` (HTML→markdown, PDF→markdown) or
- * `raw` output, optional query params, optional save to a temp file.
+ * `raw` output, binary images as base64 image blocks, optional query
+ * params, optional save to a temp file.
  */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
@@ -24,6 +25,9 @@ export async function extractHtml(html: string, url: string): Promise<string> {
 	const result = await Defuddle(html, url, { markdown: true });
 	return result.contentMarkdown ?? result.content;
 }
+
+/** Binary image MIME types → returned as base64 image blocks (SVG is text). */
+const IMAGE_MIME = new Set(['image/bmp', 'image/gif', 'image/jpeg', 'image/png', 'image/webp']);
 
 /** Common MIME types → file extensions. */
 const MIME_EXTENSIONS: Record<string, string> = {
@@ -83,32 +87,54 @@ async function saveTemp(data: string | Uint8Array, ext: string): Promise<string>
 	return path;
 }
 
-export async function fetchUrl(opts: FetchOptions): Promise<string> {
+export type FetchResult = {
+	content: string;
+	/** Base64 image payload when the response is a binary image. */
+	image?: { data: string; mimeType: string };
+	isError?: boolean;
+};
+
+export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	const url = new URL(opts.url);
 	for (const [key, value] of Object.entries(opts.params ?? {})) url.searchParams.set(key, value);
 
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
 
+	const contentType = response.headers.get('content-type') ?? '';
+	const mime = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+
+	// Binary images become base64 image blocks (or saved bytes), never text.
+	if (IMAGE_MIME.has(mime)) {
+		const bytes = new Uint8Array(await response.arrayBuffer());
+		if (opts.saveToTemp)
+			return { content: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
+		return {
+			content: `Fetched image [${mime}]`,
+			image: { data: Buffer.from(bytes).toString('base64'), mimeType: mime },
+		};
+	}
+
 	if (opts.format === 'raw') {
 		// Raw + save preserves the exact byte stream (binary included).
 		if (opts.saveToTemp) {
 			const bytes = new Uint8Array(await response.arrayBuffer());
-			return saveTemp(
-				bytes,
-				tempExtension(bytes, url, response.headers.get('content-type') ?? undefined),
-			);
+			return {
+				content: await saveTemp(
+					bytes,
+					tempExtension(bytes, url, response.headers.get('content-type') ?? undefined),
+				),
+			};
 		}
-		return response.text();
+		return { content: await response.text() };
 	}
-	const contentType = response.headers.get('content-type') ?? '';
 	let out: string;
 	if (contentType.includes('pdf') || url.pathname.endsWith('.pdf'))
 		out = pdfToMarkdown(Buffer.from(await response.arrayBuffer()));
 	else if (contentType.includes('html') || contentType.includes('xml'))
 		out = await extractHtml(await response.text(), url.toString());
 	else out = await response.text();
-	return opts.saveToTemp ? saveTemp(out, tempExtension(out)) : out;
+	return { content: opts.saveToTemp ? await saveTemp(out, tempExtension(out)) : out };
 }
 
 // Extension that registers the `fetch` tool.
@@ -119,11 +145,24 @@ export const toolFetch: Extension = (pi) => {
 		pi,
 		defineTool({
 			description:
-				'Fetch a single URL with GET. Output format `extract` (default; HTML and PDF to markdown) or `raw`. Optional query params and save-to-temp-file (saves the output, extracted or raw.',
+				'Fetch a single URL with GET. Output format `extract` (default for HTML and PDF to markdown) or `raw` (default otherwise). Optional query params and save-to-temp-file (saves the output, extracted or raw).',
 			async execute(_toolCallId, params, signal) {
 				try {
 					const out = await fetchUrl(params);
-					return signal?.aborted ? text('aborted', true) : text(out);
+					if (signal?.aborted) return text('aborted', true);
+					if (out.image)
+						return {
+							content: [
+								{ text: out.content, type: 'text' } as const,
+								{
+									data: out.image.data,
+									mimeType: out.image.mimeType,
+									type: 'image',
+								} as const,
+							],
+							details: undefined,
+						};
+					return text(out.content);
 				} catch (error) {
 					return text(errText(error), true);
 				}

@@ -99,6 +99,16 @@ test('no match reports the tried passes', () => {
 	expect(result.failure).toContain('agnostic');
 });
 
+test('failures name the offending edit index', () => {
+	const result = applyEdits('a\nb\n', [
+		{ newText: 'B', oldText: 'b' },
+		{ newText: 'z', oldText: 'missing' },
+	]);
+	expect(result.failure).toContain('edits[1]');
+	expect(result.failure).toContain('not found');
+	expect(result.content).toBe('a\nb\n');
+});
+
 test('editFile writes the change and round-trips CRLF endings', async () => {
 	const root = tmpRoot();
 	try {
