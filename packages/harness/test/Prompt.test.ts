@@ -11,21 +11,21 @@ const baseCtx = {
 	agent: 'coder',
 	appFolder: '/app/123',
 	canEditNote: false,
-	cwd: '/w',
 	now: new Date('2025-01-02T03:04:05Z'),
 	sessionId: 's-1',
 	systemPrompt: '',
 };
 
-test('render orders sections by priority, renders titles, skips empty ones', async () => {
+test('render orders system sections by priority, renders titles, skips empty ones', async () => {
 	const prompt = new Prompt();
-	prompt.root.registerSection({ priority: 300, render: async () => {} });
+	prompt.root.registerSection({ priority: 300, render: async () => {}, tier: 'system' });
 	prompt.root.registerSection({
 		priority: 200,
 		render: (ctx) => `second sees ${ctx.sessionId}`,
+		tier: 'system',
 		title: 'Second',
 	});
-	prompt.root.registerSection({ priority: 100, render: () => 'first' });
+	prompt.root.registerSection({ priority: 100, render: () => 'first', tier: 'system' });
 	expect(await prompt.root.render(baseCtx)).toBe('first\n\n## Second\n\nsecond sees s-1');
 });
 
@@ -34,13 +34,38 @@ test('sections with equal priority keep registration order; bodies may be multi-
 	prompt.root.registerSection({
 		priority: 100,
 		render: () => 'line one\nline two',
+		tier: 'system',
 		title: 'Body',
 	});
-	prompt.root.registerSection({ priority: 100, render: () => 'tail' });
+	prompt.root.registerSection({ priority: 100, render: () => 'tail', tier: 'system' });
 	expect(await prompt.root.render(baseCtx)).toBe('## Body\n\nline one\nline two\n\ntail');
 });
 
-test('composition: Sessions and Agents sections render a full agent prompt', async () => {
+test('tiers are isolated: reminder sections never reach the system prompt', async () => {
+	const prompt = new Prompt();
+	prompt.root.registerSection({ priority: 100, render: () => 'tick', tier: 'turn' });
+	prompt.root.registerSection({ priority: 100, render: () => 'state', tier: 'conditional' });
+	prompt.root.registerSection({ priority: 100, render: () => 'pulse', tier: 'periodic' });
+	const system = await prompt.root.render(baseCtx);
+	expect(system).toBe(''); // Only the (empty) skills section lives in system
+	expect(await prompt.root.reminder(baseCtx, 'turn')).toBe('tick');
+	expect(await prompt.root.reminder(baseCtx, 'conditional')).toBe('state');
+	expect(await prompt.root.reminder(baseCtx, 'periodic')).toBe('pulse');
+});
+
+test('sections only render for their targeted agents', async () => {
+	const prompt = new Prompt();
+	prompt.root.registerSection({
+		agents: ['reviewer'],
+		priority: 100,
+		render: () => 'reviewer-only',
+		tier: 'system',
+	});
+	expect(await prompt.root.render(baseCtx)).toBe('');
+	expect(await prompt.root.render({ ...baseCtx, agent: 'reviewer' })).toBe('reviewer-only');
+});
+
+test('composition: Sessions and Agents sections render per tier', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'harness-prompt-'));
 	try {
 		registry.setScope('user');
@@ -60,24 +85,33 @@ test('composition: Sessions and Agents sections render a full agent prompt', asy
 		});
 		await Bun.write(join(binding.appFolder, `${binding.sessionId}.md`), 'my todo');
 
-		const out = await prompt.root.render({
+		const ctx = {
 			...baseCtx,
 			appFolder: binding.appFolder,
 			canEditNote: true,
 			lastInvocation: new Date('2025-01-02T03:02:45Z'),
 			sessionId: binding.sessionId,
-		});
-		expect(out).toContain('2025-01-02T03:04:05'); // Identity: current date
-		expect(out).toContain('80 seconds'); // Identity: time since last invocation
-		expect(out).toContain(binding.appFolder);
-		expect(out).toContain(binding.sessionId);
-		expect(out).toContain('## Personal Note');
-		expect(out).toContain('my todo');
-		expect(out).toContain('edit'); // Note-editing instruction when canEditNote
-		expect(out).toContain('## Instructions');
-		expect(out).toContain('Be terse.');
-		expect(out).toContain('## Other Agents (Talkable)');
-		expect(out).toContain(LEADER_ID);
+		};
+		const system = await prompt.root.render(ctx);
+		expect(system).toContain(binding.appFolder); // Identity
+		expect(system).toContain(binding.sessionId);
+		expect(system).toContain('## Instructions');
+		expect(system).toContain('Be terse.');
+		expect(system).not.toContain('## Personal Note');
+		expect(system).not.toContain('Current date'); // Clock lives in the turn tier
+
+		const turn = await prompt.root.reminder(ctx, 'turn');
+		expect(turn).toContain('2025-01-02T03:04:05');
+		expect(turn).toContain('80 seconds');
+
+		const conditional = await prompt.root.reminder(ctx, 'conditional');
+		expect(conditional).toContain('## Other Agents (Talkable)');
+		expect(conditional).toContain(LEADER_ID);
+
+		const periodic = await prompt.root.reminder(ctx, 'periodic');
+		expect(periodic).toContain('## Personal Note');
+		expect(periodic).toContain('my todo');
+		expect(periodic).toContain('edit'); // Note-editing instruction when canEditNote
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -125,7 +159,7 @@ test('the skills section lifts the available_skills block from the pi system pro
 ${block}
 irrelevant`,
 	});
-	expect(out).toBe(`## Skills\n\n${block}`);
+	expect(out).toBe(`## Skills\n\nUse \`read\` tool to use skills.\n\n${block}`);
 
 	const without = await prompt.root.render({ ...baseCtx, systemPrompt: 'no skills here' });
 	expect(without).toBe('');

@@ -15,6 +15,11 @@ const TALK_DESCRIPTION = `Send an message to your leader, a colleague, or a chil
 Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop. Any talk to you will wake you up.
 Anyone can also talk to you in this way. MUST communicate with other agents through this, plain output is meaningless and NOT delivered to anyone.`;
 
+/** Heading of every per-LLM-call reminder message. */
+const REMINDER_HEADING = '## System Reminder';
+/** Minimum time between two gated (conditional/periodic) reminder appends. */
+const CONDITIONAL_INTERVAL_MS = 120_000;
+
 /** Per-session glue state: the viewed agent binding of this pi session. */
 type Instance = {
 	/** '' while no agent is bound (no configs): the session stays Pi-native. */
@@ -27,7 +32,12 @@ type Instance = {
 	registered: boolean;
 	/** Agent whose definition is currently applied (adoption re-fires skip). */
 	appliedAgent: string | undefined;
+	/** Time of the previous LLM call (drives the turn reminder clock). */
 	lastInvocation: Date | undefined;
+	/** Last successful gated reminder append, per gated tier. */
+	gatedAt: { conditional: Date | undefined; periodic: Date | undefined };
+	/** Body of the last appended conditional reminder. */
+	condBody: string | undefined;
 };
 
 /** Move the session's record file into the app session folder. pi allocated
@@ -54,6 +64,8 @@ export default function bootstrap(pi: ExtensionAPI, kernel: Kernel): void {
 		agent: '',
 		appFolder: undefined,
 		appliedAgent: undefined,
+		condBody: undefined,
+		gatedAt: { conditional: undefined, periodic: undefined },
 		lastInvocation: undefined,
 		piFile: undefined,
 		registered: false,
@@ -180,28 +192,84 @@ export default function bootstrap(pi: ExtensionAPI, kernel: Kernel): void {
 		setFooter(ctx);
 	});
 
+	/** The agent's tool set includes a note-editing tool. */
+	const canEditNote = (): boolean =>
+		pi
+			.getActiveTools()
+			.some((tool) => tool === 'write' || tool === 'edit' || tool === 'apply_patch');
+
+	/** The reminder context shared by both reminder tiers. */
+	const reminderCtx = (now: Date) => ({
+		agent: instance.agent,
+		appFolder: instance.appFolder ?? '',
+		canEditNote: canEditNote(),
+		now,
+		sessionId: instance.sessionId ?? '',
+		...(instance.lastInvocation === undefined
+			? {}
+			: { lastInvocation: instance.lastInvocation }),
+		...(instance.topic === undefined ? {} : { topicPath: instance.topic }),
+		systemPrompt: '', // The skills list lives in the system tier, not in reminders.
+	});
+
 	pi.on('before_agent_start', async (_event, ctx) => {
 		if (instance.agent === '') return; // Pi-native turn
 		await ensureRegistered(ctx);
 		if (!instance.registered) return; // Not persisted: Pi-native turn
-		const now = new Date();
 		const systemPrompt = await kernel.render({
 			agent: instance.agent,
 			appFolder: instance.appFolder ?? '',
-			canEditNote: pi
-				.getActiveTools()
-				.some((tool) => tool === 'write' || tool === 'edit' || tool === 'apply_patch'),
-			cwd: ctx.cwd,
-			...(instance.lastInvocation === undefined
-				? {}
-				: { lastInvocation: instance.lastInvocation }),
-			now,
+			canEditNote: canEditNote(),
+			now: new Date(),
 			sessionId: instance.sessionId ?? '',
 			...(instance.topic === undefined ? {} : { topicPath: instance.topic }),
 			systemPrompt: ctx.getSystemPrompt(),
 		});
-		instance.lastInvocation = now;
 		return { systemPrompt };
+	});
+
+	// Reminder injection: append a transient user message before every LLM
+	// Call — the turn clock always; the gated tiers only when the last
+	// Successful append is older than the interval (`conditional` additionally
+	// Requires its content to have changed since then). The message is used for
+	// This one request only; it is never persisted.
+	pi.on('context', async (event) => {
+		if (instance.agent === '' || !instance.registered) return {}; // Pi-native turn
+		const now = new Date();
+		const ctx = reminderCtx(now);
+		instance.lastInvocation = now;
+		const parts: Array<string> = [];
+		const turn = await kernel.reminder(ctx, 'turn');
+		if (turn !== '') parts.push(turn);
+		for (const tier of ['conditional', 'periodic'] as const) {
+			const at = instance.gatedAt[tier];
+			if (at !== undefined && now.getTime() - at.getTime() < CONDITIONAL_INTERVAL_MS)
+				continue;
+			const body = await kernel.reminder(ctx, tier);
+			if (body === '') continue;
+			if (tier === 'conditional') {
+				if (body === instance.condBody) continue;
+				instance.condBody = body;
+			}
+			instance.gatedAt[tier] = now;
+			parts.push(body);
+		}
+		if (parts.length === 0) return {};
+		return {
+			messages: [
+				...event.messages,
+				{
+					content: [
+						{
+							text: `${REMINDER_HEADING}\n\n${parts.join('\n\n')}`,
+							type: 'text' as const,
+						},
+					],
+					role: 'user' as const,
+					timestamp: now.getTime(),
+				},
+			],
+		};
 	});
 
 	// Human input = commander-00001 talking to the viewed session.

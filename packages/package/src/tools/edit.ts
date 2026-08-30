@@ -1,6 +1,5 @@
 import type { Extension } from '@repo/shared/contract';
-import { defineTool, renderDiff } from '@earendil-works/pi-coding-agent';
-import { Text } from '@earendil-works/pi-tui';
+import { defineTool } from '@earendil-works/pi-coding-agent';
 /**
  * Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named
  * extension tool wins in Pi's tool registry). Matching runs three passes,
@@ -241,8 +240,7 @@ export const toolEdit: Extension = (pi) => {
 			async execute(_toolCallId, params) {
 				try {
 					const outcome = await editFile(params.path, params.edits);
-					if (outcome.failure !== undefined)
-						return text(`${outcome.failure} (${params.path})`, true);
+					if (outcome.failure) return text(`${outcome.failure} (${params.path})`, true);
 					return {
 						content: [
 							{
@@ -267,21 +265,6 @@ export const toolEdit: Extension = (pi) => {
 					description: 'Path to the file to edit (relative or absolute).',
 				}),
 			}),
-			renderResult(result, _options, theme, context) {
-				if (context.isError) {
-					const message = result.content
-						.filter((part) => part.type === 'text')
-						.map((part) => part.text)
-						.join('\n');
-					return new Text(theme.fg('error', message), 0, 0);
-				}
-				const diff = result.details?.diff;
-				return new Text(
-					typeof diff === 'string' && diff !== '' ? renderDiff(diff) : '',
-					0,
-					0,
-				);
-			},
 		}),
 	);
 };

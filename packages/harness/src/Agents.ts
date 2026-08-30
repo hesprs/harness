@@ -85,6 +85,7 @@ export default class Agents {
 		ctx.registerSection({
 			priority: 400,
 			render: instructionsSection,
+			tier: 'system',
 			title: 'Instructions',
 		});
 	}

@@ -58,20 +58,24 @@ function bindingOf(folder: string, record: SessionRecord): SessionBinding {
 	};
 }
 
+/** Session identity: the static facts of this agent session. */
 function identitySection(ctx: {
-	now: Date;
-	lastInvocation?: Date;
 	appFolder: string;
 	sessionId: string;
 	topicPath?: string;
 }): string {
+	const lines = [`Application session: \`${ctx.appFolder}\``, `Your ID: \`${ctx.sessionId}\``];
+	if (ctx.topicPath !== undefined) lines.push(`Topic: \`${ctx.topicPath}\``);
+	return lines.join('\n');
+}
+
+/** Turn clock: rendered into every per-LLM-call reminder message. */
+function clockSection(ctx: { now: Date; lastInvocation?: Date }): string {
 	const lines = [`Current date: \`${ctx.now.toISOString()}\``];
 	if (ctx.lastInvocation !== undefined) {
 		const seconds = Math.round((ctx.now.getTime() - ctx.lastInvocation.getTime()) / 1000);
 		lines.push(`Time since last invocation: ${seconds} seconds`);
 	}
-	lines.push(`Application session: \`${ctx.appFolder}\``, `Your ID: \`${ctx.sessionId}\``);
-	if (ctx.topicPath !== undefined) lines.push(`Topic: \`${ctx.topicPath}\``);
 	return lines.join('\n');
 }
 
@@ -93,7 +97,7 @@ async function noteSection(ctx: {
 	const content = await Bun.file(notePath)
 		.text()
 		.catch(() => '');
-	return `Personal note is at \`${notePath}\`.${ctx.canEditNote ? ' You can edit this note with your file tools; use it for TODOs and handoff notes; the note manifests what you are doing to other agents.' : ''}${content ? ` Note content:\n\n${content}` : ''}`;
+	return `Personal note is at \`${notePath}\`.${ctx.canEditNote ? ' You can edit this note with your file tools; use it for TODOs and handoff notes; the note manifests what you are doing to other agents.' : ''} ${content ? `Note content:\n\n${content}` : 'Note is currently empty.'}`;
 }
 
 export default class Sessions {
@@ -356,23 +360,24 @@ export default class Sessions {
 	}
 
 	constructor(ctx: { registerSection: (section: PromptSection) => void }) {
-		ctx.registerSection({
-			priority: 100,
-			render: identitySection,
-		});
+		ctx.registerSection({ priority: 100, render: identitySection, tier: 'system' });
+		ctx.registerSection({ priority: 100, render: clockSection, tier: 'turn' });
 		ctx.registerSection({
 			priority: 200,
 			render: topicSection,
+			tier: 'system',
 			title: 'Topic Context',
 		});
 		ctx.registerSection({
 			priority: 300,
 			render: noteSection,
+			tier: 'periodic',
 			title: 'Personal Note',
 		});
 		ctx.registerSection({
 			priority: 500,
 			render: this.talkable,
+			tier: 'conditional',
 			title: 'Other Agents (Talkable)',
 		});
 	}

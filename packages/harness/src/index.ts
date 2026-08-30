@@ -28,11 +28,6 @@ type Matcher<T extends KernelContract> = T;
  * (where the viewed agent runs natively) plus every background SDK session. */
 export default function harness(pi: ExtensionAPI): void {
 	const shared = globalThis as { harnessKernel?: Kernel };
-	shared.harnessKernel ??= createContext(allModules, {
-		injectKeys: [],
-		mergeKeys: ['root'],
-		preMerge: { pi },
-	});
-
+	shared.harnessKernel ??= createContext(allModules, { mergeKeys: ['root'], preMerge: { pi } });
 	bootstrap(pi, shared.harnessKernel);
 }

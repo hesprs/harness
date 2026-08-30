@@ -137,7 +137,7 @@
 						"sessionDuration": false,
 						"username": false,
 						"time": false,
-						"os": false,
+						"os": true,
 						"packageVersion": false
 					},
 					"gitBranch": {
