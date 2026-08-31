@@ -3,10 +3,9 @@ import { defineTool } from '@earendil-works/pi-coding-agent';
 /**
  * Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named
  * extension tool wins in Pi's tool registry). Matching first tries the
- * exact substring, then a whitespace-less, escape-agnostic pass: every
- * whitespace character — including its literal `\n`/`\t` spelling — is
- * stripped from both sides, literal `\\`/`\"`/`\'` count as their real
- * characters, and a fuzzy match always replaces whole lines of real file
+ * exact substring, then a whitespace-less pass: every
+ * whitespace character is stripped from both sides.
+ * and a fuzzy match always replaces whole lines of real file
  * text — never the query.
  *
  * An ambiguous match fails with 1-indexed line numbers instead of guessing;
@@ -25,18 +24,15 @@ export type EditInput = {
 };
 
 /** Whitespace-less, escape-agnostic normalization: every whitespace
- * character — including its literal `\n`/`\t` spelling — vanishes, while
- * literal `\\`/`\"`/`\'` become their real characters. `indices[i]` is the
+ * character vanishes. `indices[i]` is the
  * source offset of chunk character `i`. */
 function normalizeChunks(source: string): { chunks: string; indices: Array<number> } {
-	const unescapes: Record<string, string> = { '"': '"', "'": "'", '\\': '\\', n: '\n', t: '\t' };
 	const chars: Array<string> = [];
 	const indices: Array<number> = [];
 	for (let i = 0; i < source.length; i++) {
-		const unescaped = source[i] === '\\' ? unescapes[source[i + 1] ?? ''] : undefined;
-		if (unescaped !== undefined) i++;
-		if (/\s/u.test(unescaped ?? source[i] ?? '')) continue;
-		chars.push(unescaped ?? source[i] ?? '');
+		const char = source[i] as string;
+		if (/\s/u.test(char)) continue;
+		chars.push(char);
 		indices.push(i);
 	}
 	return { chunks: chars.join(''), indices };

@@ -24,12 +24,6 @@ test('blank-line differences are tolerated on both sides', () => {
 	expect(result.content).toBe('c\n');
 });
 
-test('literal escapes match real characters', () => {
-	const result = applyEdits('a\nb\n', [{ newText: 'X', oldText: 'a\\nb' }]);
-	expect(result.failure).toBeUndefined();
-	expect(result.content).toBe('X\n');
-});
-
 test('ambiguous oldText fails with line numbers', () => {
 	const result = applyEdits('x\nx\n', [{ newText: 'y', oldText: 'x' }]);
 	expect(result.failure).toContain('matches at lines 1, 2');

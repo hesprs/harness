@@ -119,13 +119,43 @@ test('fetchUrl save-to-file extensions: mime, magic bytes, and markdown', async 
 	});
 	expect(sniffed.endsWith('.pdf')).toBe(true);
 
-	// Extracted output is always markdown.
+	// Non-extractable content saves raw bytes with a content-type extension.
 	using text = Bun.serve({
 		fetch: () => new Response('plain', { headers: { 'content-type': 'text/plain' } }),
 		port: 0,
 	});
-	const { content: md } = await fetchUrl({ saveToTemp: true, url: text.url.toString() });
-	expect(md.endsWith('.md')).toBe(true);
+	const { content: txt } = await fetchUrl({ saveToTemp: true, url: text.url.toString() });
+	expect(txt.endsWith('.txt')).toBe(true);
+});
+
+test('fetchUrl defaults to raw for non-HTML/PDF content and ignores `extract`', async () => {
+	using server = Bun.serve({
+		fetch: () => new Response('{"a":1}', { headers: { 'content-type': 'application/json' } }),
+	});
+	// Default format on JSON is raw, so the temp file keeps the JSON extension.
+	const def = await fetchUrl({ saveToTemp: true, url: server.url.toString() });
+	expect(def.content.endsWith('.json')).toBe(true);
+	// Explicit `extract` on JSON is ignored — still raw.
+	const forced = await fetchUrl({
+		format: 'extract',
+		saveToTemp: true,
+		url: server.url.toString(),
+	});
+	expect(forced.content.endsWith('.json')).toBe(true);
+	// Raw output returns the body as-is.
+	const inline = await fetchUrl({ url: server.url.toString() });
+	expect(inline.content).toBe('{"a":1}');
+});
+
+test('fetchUrl returns XML responses as raw text, not markdown', async () => {
+	using server = Bun.serve({
+		fetch: () =>
+			new Response('<root><a>1</a></root>', {
+				headers: { 'content-type': 'application/xml' },
+			}),
+	});
+	const out = await fetchUrl({ format: 'extract', url: server.url.toString() });
+	expect(out.content).toBe('<root><a>1</a></root>');
 });
 
 test('fetchUrl returns binary images as base64 image payloads, not text', async () => {
