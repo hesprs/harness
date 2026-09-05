@@ -9,6 +9,7 @@
  * talk renderer and foreground delivery re-bind on each session_start.
  */
 import type {
+	EntryRenderer,
 	ExtensionAPI,
 	ExtensionCommandContext,
 	MessageRenderer,
@@ -16,7 +17,7 @@ import type {
 import { getMarkdownTheme } from '@earendil-works/pi-coding-agent';
 import { Markdown } from '@earendil-works/pi-tui';
 import { LEADER_ID } from '@repo/shared/contract';
-import type { AppMeta } from '@/model';
+import type { AppMeta, LeaderTalk } from '@/model';
 import type { LiveSession } from '@/Sessions';
 import {
 	MetaStore,
@@ -37,6 +38,17 @@ const renderTalk: MessageRenderer = (message) => {
 	return new Markdown(`**${from}** (${rel})\n\n${msg}`, 0, 0, getMarkdownTheme());
 };
 
+/** Render a replayed leader talk for the controller waterfall. A CustomEntry
+ * is display-only: unlike the talk message above, it never enters LLM context. */
+const renderTalkEntry: EntryRenderer<LeaderTalk> = ({ data }) =>
+	data &&
+	new Markdown(
+		`**${data.from}** (${data.relationship})\n\n${data.message}`,
+		0,
+		0,
+		getMarkdownTheme(),
+	);
+
 /** Command context surface used by the shift/apps handlers. */
 type CommandContext = Pick<ExtensionCommandContext, 'cwd' | 'ui' | 'newSession' | 'switchSession'>;
 
@@ -54,6 +66,7 @@ export default class Controller {
 	private readonly registerSurface = (pi: ExtensionAPI): void => {
 		this.registerCommands(pi);
 		pi.registerMessageRenderer('talk', renderTalk);
+		pi.registerEntryRenderer('talk', renderTalkEntry);
 	};
 
 	/** Attach the human surface to the interactive session (per session_start). */
@@ -242,14 +255,12 @@ export default class Controller {
 		});
 	};
 
-	/** /talks → replay the talks received by the leader into the waterfall. */
+	/** /talks → replay the talks received by the leader into the waterfall as
+	 * custom entries: rendered by renderTalkEntry, never sent to the model. */
 	private readonly talks = async (): Promise<void> => {
 		if (this.ctx.appFolder() === undefined || this.pi === undefined) return;
 		const meta = await this.ctx.meta();
-		for (const talk of meta.leaderTalks ?? [])
-			this.pi.sendMessage(encodeTalk(talk.from, talk.relationship, talk.message), {
-				triggerTurn: false,
-			});
+		for (const talk of meta.leaderTalks ?? []) this.pi.appendEntry('talk', talk);
 	};
 
 	private readonly registerCommands = (pi: ExtensionAPI): void => {

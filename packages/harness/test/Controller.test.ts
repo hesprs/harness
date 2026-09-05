@@ -26,14 +26,22 @@ type SentTalk = { content: string; deliverAs: string; triggerTurn: boolean };
 
 function makePi() {
 	const sent: Array<SentTalk> = [];
+	const appended: Array<{ customType: string; data: unknown }> = [];
 	const commands = new Map<string, (args: string | undefined, ctx: unknown) => Promise<void>>();
 	const renderers = new Map<string, (message: { content: string }) => unknown>();
+	const entryRenderers = new Map<string, (entry: { data?: unknown }) => unknown>();
 	const pi = {
+		appendEntry: (customType: string, data?: unknown) => {
+			appended.push({ customType, data });
+		},
 		registerCommand: (
 			name: string,
 			options: { handler: (args: string | undefined, ctx: unknown) => Promise<void> },
 		) => {
 			commands.set(name, options.handler);
+		},
+		registerEntryRenderer: (type: string, render: (entry: { data?: unknown }) => unknown) => {
+			entryRenderers.set(type, render);
 		},
 		registerMessageRenderer: (
 			type: string,
@@ -50,7 +58,9 @@ function makePi() {
 		},
 	};
 	return {
+		appended,
 		commands,
+		entryRenderers,
 		pi: pi as unknown as ExtensionAPI,
 		renderers,
 		sent,
@@ -104,7 +114,7 @@ async function setup() {
 	sessions.root.activate(app.appFolder);
 	const store = new MetaStore(app.appFolder);
 	const actions: Array<string> = [];
-	const { commands, pi, renderers, sent } = makePi();
+	const { appended, commands, entryRenderers, pi, renderers, sent } = makePi();
 	const controller = new Controller({
 		...sessions.root,
 		defaultAgent: () => Promise.resolve('coder'),
@@ -136,8 +146,10 @@ async function setup() {
 		actions,
 		addSession,
 		appFolder: app.appFolder,
+		appended,
 		commands,
 		controller,
+		entryRenderers,
 		notified,
 		renderers,
 		root,
@@ -147,7 +159,7 @@ async function setup() {
 }
 
 test('registerSurface registers commands and the talk renderer at factory time', async () => {
-	const { commands, renderers } = await setup();
+	const { commands, renderers, entryRenderers } = await setup();
 	expect([...commands.keys()].sort()).toEqual(['apps', 'shift', 'talks']);
 	const render = renderers.get('talk');
 	expect(render).toBeDefined();
@@ -155,6 +167,12 @@ test('registerSurface registers commands and the talk renderer at factory time',
 		content: JSON.stringify({ from: 'A', message: 'hi', relationship: 'child' }),
 	});
 	expect(component).toBeInstanceOf(Markdown);
+	const renderEntry = entryRenderers.get('talk');
+	expect(renderEntry).toBeDefined();
+	const entryComponent = renderEntry?.({
+		data: { at: '', from: 'A', message: 'hi', relationship: 'child' },
+	});
+	expect(entryComponent).toBeInstanceOf(Markdown);
 });
 
 test('talk to the leader records a leader talk and notifies', async () => {
@@ -299,8 +317,8 @@ test('/shift new arms the picked agent, remembers it and swaps to a fresh sessio
 	}
 });
 
-test('/talks replays stored leader talks into the controller session', async () => {
-	const { commands, root, sent, sessions } = await setup();
+test('/talks replays stored leader talks into the waterfall as UI-only entries', async () => {
+	const { commands, root, sessions, appended, sent } = await setup();
 	try {
 		await sessions.root.mutateMeta((m) => {
 			(m.leaderTalks ??= []).push({
@@ -311,13 +329,13 @@ test('/talks replays stored leader talks into the controller session', async () 
 			});
 		});
 		await commands.get('talks')?.(undefined, {});
-		expect(sent).toHaveLength(1);
-		expect(JSON.parse(sent[0]?.content ?? '')).toEqual({
-			from: 'A',
-			message: 'ping',
-			relationship: 'child',
-		});
-		expect(sent[0]?.triggerTurn).toBe(false);
+		expect(sent).toHaveLength(0);
+		expect(appended).toEqual([
+			{
+				customType: 'talk',
+				data: { at: expect.any(String), from: 'A', message: 'ping', relationship: 'child' },
+			},
+		]);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
