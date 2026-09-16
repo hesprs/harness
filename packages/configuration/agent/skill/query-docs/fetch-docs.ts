@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// oxlint-disable no-console
 
 const USAGE = `Usage: bun path/to/skill/fetch-docs.ts [--type <txt|json>] <libraryId> <query...>`;
 
@@ -19,7 +20,7 @@ let type = 'txt';
 const positional: Array<string> = [];
 
 for (let i = 0; i < rawArgs.length; i += 1) {
-	const arg = rawArgs[i]!;
+	const arg = rawArgs[i] ?? '';
 
 	if (arg === '--type' || arg === '-t') {
 		const next = rawArgs[i + 1];
@@ -64,5 +65,5 @@ if (type === 'txt') {
 	process.exit(0);
 }
 
-const data = await response.json();
+const data: unknown = await response.json();
 console.log(JSON.stringify(data, undefined, 2));

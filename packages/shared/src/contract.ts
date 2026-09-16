@@ -5,6 +5,26 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 export const LEADER_ID = 'commander-00001';
 
 /**
+ * Channel of the talkable-info event. A session dispatches it on its own
+ * `pi.events` bus to gather what other agents see about it (description,
+ * note). Handlers must mutate the payload synchronously — the dispatching
+ * session reads it right after emit.
+ */
+export const TALKABLE_INFO_CHANNEL = 'harness:talkable-info';
+
+/** Channel of the per-turn system reminder. The session fires it with an
+ * empty payload; internal triggers and extensions append text, and the
+ * session injects the trimmed result (nothing when empty). */
+export const SYSTEM_REMINDER_CHANNEL = 'harness:system-reminder';
+
+/** What other agents see about a session: one plain string that the
+ * session's extensions may rewrite on the talkable-info event. */
+export type TalkableInfoEvent = { text: string };
+
+/** The per-turn system reminder payload: starts empty, handlers append. */
+export type SystemReminderEvent = { text: string };
+
+/**
  * Structural contract between the published tools and the live framework
  * kernel (the framework entry stashes it on globalThis). Tools resolve the
  * kernel through this accessor — never via framework imports — so the
@@ -19,6 +39,11 @@ export type KernelContract = {
 	deliverTalk: (from: string, to: string, message: string) => Promise<void>;
 	bindingOf: (piSessionId: string) => { sessionId: string; appFolder: string } | undefined;
 	appFolder: () => string | undefined;
+	/** Registration surface for `harness.config.ts`, resolved from
+	 * globalThis (see kernel()). */
+	defineBaseAgent: (args: BaseAgentArgs) => void;
+	defineAgent: (args: NamedAgentArgs) => string;
+	get: (name: string) => AgentDefinition | undefined;
 };
 
 export function kernel(): KernelContract {
@@ -38,102 +63,14 @@ export type AgentDefinition = {
 	extensions: Array<Extension>;
 };
 
-type AgentArgs = {
+export type BaseAgentArgs = {
 	model?: string;
 	thinking?: ThinkingLevel;
 	prompt?: string;
 	extensions?: Array<Extension>;
 };
 
-type NamedAgentArgs = {
+export type NamedAgentArgs = {
 	name: string;
 	description: string;
-} & AgentArgs;
-
-type BaseDefinition = {
-	model?: string;
-	thinking?: ThinkingLevel;
-	prompts: Array<string>;
-	extensions: Array<Extension>;
-};
-
-type Scope = 'user' | 'cwd';
-
-type Layer = {
-	base: BaseDefinition;
-	named: Map<string, NamedAgentArgs>;
-};
-
-/**
- * Agent registry. Populated by importing `harness.config.ts` files (user
- * scope first, then cwd scope). Definition order is preserved for "first
- * defined agent wins". Effective definitions merge layers in priority
- * order `cwd named > user named > cwd base > user base`: `model`/`thinking`
- * are overridden by the highest layer that sets them, `prompt`/`extensions`
- * accumulate from all layers.
- */
-export class Registry {
-	private readonly scopes: Record<Scope, Layer> = {
-		cwd: { base: { extensions: [], prompts: [] }, named: new Map() },
-		user: { base: { extensions: [], prompts: [] }, named: new Map() },
-	};
-	private readonly order: Array<string> = [];
-	private current: Scope = 'user';
-
-	/** Set the scope subsequent define* calls are attributed to. */
-	setScope(scope: Scope): void {
-		this.current = scope;
-	}
-
-	defineBaseAgent(args: AgentArgs): void {
-		const base = this.scopes[this.current].base;
-		if (args.model !== undefined) base.model = args.model;
-		if (args.thinking !== undefined) base.thinking = args.thinking;
-		if (args.prompt !== undefined) base.prompts.push(args.prompt);
-		if (args.extensions) base.extensions.push(...args.extensions);
-	}
-
-	defineAgent(args: NamedAgentArgs): string {
-		const named = this.scopes[this.current].named;
-		if (!this.order.includes(args.name)) this.order.push(args.name);
-		named.set(args.name, args);
-		return args.name;
-	}
-
-	/** Effective definition of `name`, merged across layers. */
-	get(name: string): AgentDefinition | undefined {
-		if (!this.order.includes(name)) return undefined;
-		const user = this.scopes.user;
-		const cwd = this.scopes.cwd;
-		// Priority order (highest first) for override fields.
-		const overrideOrder = [cwd.named.get(name), user.named.get(name), cwd.base, user.base];
-		// Accumulation order (lowest first): user base, cwd base, user named, cwd named.
-		const accumOrder = [user.base, cwd.base, user.named.get(name), cwd.named.get(name)];
-		const description = cwd.named.get(name)?.description ?? user.named.get(name)?.description;
-		if (description === undefined) return undefined;
-		let model: string | undefined;
-		let thinking: ThinkingLevel | undefined;
-		for (const layer of overrideOrder) {
-			model ??= layer?.model;
-			thinking ??= layer?.thinking;
-		}
-		const prompts: Array<string> = [];
-		const extensions: Array<Extension> = [];
-		for (const layer of accumOrder) {
-			if (!layer) continue;
-			if ('prompts' in layer) {
-				prompts.push(...layer.prompts);
-				extensions.push(...layer.extensions);
-			} else {
-				if (layer.prompt !== undefined) prompts.push(layer.prompt);
-				if (layer.extensions) extensions.push(...layer.extensions);
-			}
-		}
-		return { description, extensions, model, name, prompts, thinking };
-	}
-
-	/** All defined agent names in first-definition order. */
-	names(): Array<string> {
-		return [...this.order];
-	}
-}
+} & BaseAgentArgs;

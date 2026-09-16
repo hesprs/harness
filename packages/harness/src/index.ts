@@ -1,33 +1,32 @@
 /**
- * Framework entry (Pi extension): the kernel loader plus the host adapter.
- * One SynthKernel context per controller process, stashed on globalThis so
- * every module instance — the controller extension, background SDK session
- * extensions — shares one kernel.
+ * Framework entry (Pi extension). One SynthKernel context per controller
+ * process, stashed on globalThis so every module instance — the controller
+ * extension, background SDK session extensions — shares one kernel.
  *
- * Module order matters: Prompt first (owns prompt construction and the
- * skills section), Controller last (consumes all roots).
+ * Module order matters: Agents first (definitions), Sessions second (the
+ * session world), Controller last (consumes both). Each session's glue —
+ * identity, prompt, tools — belongs to its own Session instance, one per
+ * Pi session runner.
  */
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { KernelContract } from '@repo/shared/contract';
 import type { Context as KernelContext } from 'synthkernel';
 import { createContext } from 'synthkernel';
 import Agents from '@/Agents';
-import bootstrap from '@/bootstrap';
 import Controller from '@/Controller';
-import Prompt from '@/Prompt';
+import Session from '@/Session';
 import Sessions from '@/Sessions';
 
-const allModules = [Prompt, Agents, Sessions, Controller] as const;
+const allModules = [Agents, Sessions, Controller] as const;
 export type Kernel = KernelContext<typeof allModules, 'root'>;
 
-// oxlint-disable-next-line no-unused-vars : Compile-time guarantee: the kernel satisfies the published tools' contract.
-type CompileGuard = Matcher<KernelContract>;
-type Matcher<T extends KernelContract> = T;
+// Compile-time guarantee: the kernel satisfies the published tools' contract.
+type CompileGuard<T extends KernelContract> = T;
+// oxlint-disable-next-line no-unused-vars
+type Guard = CompileGuard<Kernel>;
 
-/** One bootstrap for every live session: the controller's interactive session
- * (where the viewed agent runs natively) plus every background SDK session. */
 export default function harness(pi: ExtensionAPI): void {
 	const shared = globalThis as { harnessKernel?: Kernel };
-	shared.harnessKernel ??= createContext(allModules, { mergeKeys: ['root'], preMerge: { pi } });
-	bootstrap(pi, shared.harnessKernel);
+	shared.harnessKernel ??= createContext(allModules, { mergeKeys: ['root'] });
+	new Session(pi, shared.harnessKernel);
 }

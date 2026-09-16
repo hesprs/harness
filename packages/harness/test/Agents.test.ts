@@ -1,72 +1,58 @@
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { test, expect } from 'bun:test';
-import Agents, { registry } from '@/Agents';
+import { Registry } from '@/Agents';
 
-function makePi() {
-	const calls: Array<[string, unknown]> = [];
-	const extensions: Array<string> = [];
-	return {
-		calls,
-		extensions,
-		pi: {
-			getActiveTools: () => [],
-			registerTool: () => {},
-			setActiveTools: (tools: Array<string>) => {
-				calls.push(['setActiveTools', tools]);
-			},
-			setModel: (model: unknown) => {
-				calls.push(['setModel', model]);
-			},
-			setThinkingLevel: (level: unknown) => {
-				calls.push(['setThinkingLevel', level]);
-			},
-		} as unknown as ExtensionAPI,
-	};
-}
-
-function modelRegistry(modelId: string): Pick<ExtensionContext, 'modelRegistry'> {
-	return {
-		modelRegistry: {
-			find: (_provider: string, id: string) => ({ id: modelId ?? id }),
-		} as unknown as ExtensionContext['modelRegistry'],
-	};
-}
-
-const NAME = 'agents-test-coder';
-
-test('apply activates talk, definition extensions, model and thinking', async () => {
-	registry.setScope('user');
-	const extension = (pi: ExtensionAPI) => {
-		void pi;
-	};
-	registry.defineAgent({
-		description: 'writes code',
-		extensions: [extension],
-		model: 'anthropic/claude-test',
-		name: NAME,
-		thinking: 'high',
-	});
-	const agents = new Agents({ registerSection: () => {} });
-	const { calls, pi } = makePi();
-	await agents.root.apply(pi, modelRegistry('claude-test'), NAME);
-	expect(calls).toContainEqual(['setActiveTools', ['talk']]);
-	expect(calls).toContainEqual(['setModel', { id: 'claude-test' }]);
-	expect(calls).toContainEqual(['setThinkingLevel', 'high']);
+test('defineAgent returns the name and resolves the definition', () => {
+	const reg = new Registry();
+	const name = reg.defineAgent({ description: 'writes code', name: 'coder', prompt: 'P' });
+	expect(name).toBe('coder');
+	const def = reg.get('coder');
+	expect(def?.description).toBe('writes code');
+	expect(def?.prompts).toEqual(['P']);
 });
 
-test('apply skips the model when the definition has no provider/id pair', async () => {
-	registry.setScope('user');
-	registry.defineAgent({ description: 'd', name: 'agents-test-plain' });
-	const agents = new Agents({ registerSection: () => {} });
-	const { calls, pi } = makePi();
-	await agents.root.apply(pi, modelRegistry(''), 'agents-test-plain');
-	expect(calls).toContainEqual(['setActiveTools', ['talk']]);
-	expect(calls.some(([kind]) => kind === 'setModel')).toBe(false);
+test('base prompts and extensions accumulate into every agent', () => {
+	const reg = new Registry();
+	reg.setScope('user');
+	reg.defineBaseAgent({ extensions: [() => {}], prompt: 'B1' });
+	reg.setScope('cwd');
+	reg.defineBaseAgent({ extensions: [() => {}], prompt: 'B2' });
+	reg.defineAgent({ description: 'd', extensions: [() => {}], name: 'a', prompt: 'P' });
+	reg.defineAgent({ description: 'd', name: 'b' });
+	expect(reg.get('a')?.prompts).toEqual(['B1', 'B2', 'P']);
+	expect(reg.get('a')?.extensions).toHaveLength(3);
+	expect(reg.get('b')?.prompts).toEqual(['B1', 'B2']);
 });
 
-test('apply with an unknown agent still activates the talk tool', async () => {
-	const agents = new Agents({ registerSection: () => {} });
-	const { calls, pi } = makePi();
-	await agents.root.apply(pi, modelRegistry(''), 'agents-test-unknown');
-	expect(calls).toContainEqual(['setActiveTools', ['talk']]);
+test('model and thinking override follows cwd named > user named > cwd base > user base', () => {
+	const reg = new Registry();
+	reg.setScope('user');
+	reg.defineBaseAgent({ model: 'user-base', thinking: 'medium' });
+	reg.defineAgent({ description: 'd', model: 'user-named', name: 'a' });
+	reg.defineAgent({ description: 'd', name: 'b' });
+	reg.setScope('cwd');
+	reg.defineBaseAgent({ model: 'cwd-base' });
+	reg.defineAgent({ description: 'd', name: 'a' }); // No model: user named still wins over cwd base
+	reg.defineAgent({ description: 'd', name: 'b' }); // Only cwd base vs user base
+	reg.defineAgent({ description: 'd', model: 'cwd-named', name: 'c' });
+	expect(reg.get('a')?.model).toBe('user-named');
+	expect(reg.get('b')?.model).toBe('cwd-base');
+	expect(reg.get('c')?.model).toBe('cwd-named');
+	expect(reg.get('c')?.thinking).toBe('medium');
+});
+
+test('names preserves first-definition order across scopes', () => {
+	const reg = new Registry();
+	reg.setScope('user');
+	reg.defineAgent({ description: 'd', name: 'a' });
+	reg.defineAgent({ description: 'd', name: 'b' });
+	reg.setScope('cwd');
+	reg.defineAgent({ description: 'overridden', name: 'a' });
+	reg.defineAgent({ description: 'd', name: 'c' });
+	expect(reg.names()).toEqual(['a', 'b', 'c']);
+	expect(reg.get('a')?.description).toBe('overridden');
+});
+
+test('get of an undefined agent is undefined', () => {
+	const reg = new Registry();
+	expect(reg.get('nope')).toBeUndefined();
 });

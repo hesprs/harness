@@ -3,29 +3,26 @@ import { existsSync, watch } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { AppMeta, SessionRecord } from '@/model';
-import type { PromptSection } from '@/Prompt';
-import { registry } from '@/Agents';
+import type Session from '@/Session';
 import {
-	MetaStore,
 	createAppSession,
 	listAppSessions,
 	newSessionId,
+	persistMeta,
 	recordByPath,
 	registerSession,
-	talkableSessions,
 	topicCascade,
 } from '@/model';
+import { hostPi } from '@/patch.ts';
+
 /**
  * Sessions module: the session world. Owns the active application session,
- * the viewed session, the pending agent, pi-session identity bindings and
- * the live background sessions — plus every session lifecycle operation:
- * bind-by-file, controller registration, spawn, background session creation,
- * and watcher-driven deletion: deleting a session's record file (or a topic
- * file) aborts the affected sessions. Registers the identity, topic, note and
- * talkable prompt sections.
+ * the viewed session, the pending agent, pi-session identity bindings, the
+ * live agent sessions — plus every session lifecycle operation: bind-by-file,
+ * controller registration, spawn, on-demand background session creation, and
+ * watcher-driven deletion: deleting a session's record file (or a topic
+ * file) aborts the affected sessions.
  */
-import { hostPi } from '@/patch.ts';
-import { talkableEntry } from '@/Prompt';
 
 export type SessionBinding = {
 	sessionId: string;
@@ -58,86 +55,21 @@ function bindingOf(folder: string, record: SessionRecord): SessionBinding {
 	};
 }
 
-const fmt = new Intl.DateTimeFormat('en-US', {
-	day: 'numeric',
-	month: 'short',
-	year: 'numeric',
-});
-
-/** Session identity: the static facts of this agent session. */
-function identitySection({
-	appFolder,
-	sessionId,
-	topicPath,
-	now,
-}: {
-	appFolder: string;
-	sessionId: string;
-	topicPath?: string;
-	now: Date;
-}): string {
-	const lines = [
-		`Application session: \`${appFolder}\``,
-		`Your ID: \`${sessionId}\``,
-		`Current date: ${fmt.format(now)}`,
-	];
-	if (topicPath) lines.push(`Topic: \`${topicPath}\``);
-	return lines.join('\n');
-}
-
-async function topicSection(ctx: { topicPath?: string }): Promise<string> {
-	if (ctx.topicPath === undefined) return '';
-	try {
-		return await Bun.file(ctx.topicPath).text();
-	} catch {
-		return '';
-	}
-}
-
-function noteDynamic({
-	appFolder,
-	sessionId,
-}: {
-	appFolder: string;
-	sessionId: string;
-}): Promise<string> {
-	return Bun.file(join(appFolder, `${sessionId}.md`))
-		.text()
-		.catch(() => '');
-}
-
-function noteSection({
-	appFolder,
-	sessionId,
-	canEditNote,
-}: {
-	appFolder: string;
-	sessionId: string;
-	canEditNote: boolean;
-}): string {
-	return `Your personal note is at \`${join(appFolder, `${sessionId}.md`)}\`.${canEditNote ? ' You can edit this note with your file tools; use it for TODOs; the note manifests what you are doing to other agents.' : ''}`;
-}
-
 export default class Sessions {
-	private appFolder: string | undefined;
+	/** The active application session's meta — seeded from disk once (at
+	 * activation or creation), mutated in memory, persisted fire-and-forget. */
+	private meta: AppMeta | undefined;
+	private get appFolder(): string | undefined {
+		return this.meta?.appFolder;
+	}
 	private currentViewing: string | undefined;
 	private pendingAgent: string | undefined;
 	/** Record located in the app folder for the pending controller session. */
 	private pendingRecord: { recordPath: string; sessionId: string } | undefined;
 	private cwd: string | undefined;
 	private readonly bindings = new Map<string, SessionBinding>();
-	private readonly background = new Map<string, LiveSession>();
+	private readonly sessions = new Map<string, Session>();
 	private readonly trackedDirs = new Map<string, TrackedDir>();
-
-	private readonly talkable = async (ctx: { sessionId: string }): Promise<string> => {
-		try {
-			const meta = await this.readMeta();
-			const list = await talkableSessions(meta, (name) => registry.get(name), ctx.sessionId);
-			return list.map(talkableEntry).join('\n');
-		} catch {
-			return ''; // Meta unavailable: talk tool still registered
-		}
-	};
 
 	/** Bind the pi session owning `file`: the record matching it in the active
 	 * app session or any app session under `root` — records opened outside
@@ -147,16 +79,16 @@ export default class Sessions {
 		file: string,
 		root: string,
 	): Promise<SessionBinding | undefined> => {
-		const folders = this.appFolder === undefined ? [] : [this.appFolder];
-		for (const meta of await listAppSessions(root)) folders.push(meta.appFolder);
-		for (const folder of new Set(folders)) {
-			const record = recordByPath(await new MetaStore(folder).read(), file);
+		const candidates: Array<AppMeta> = this.meta === undefined ? [] : [this.meta];
+		for (const listed of await listAppSessions(root)) candidates.push(listed);
+		for (const meta of candidates) {
+			const record = recordByPath(meta, file);
 			if (record === undefined) continue;
-			this.appFolder = folder;
+			this.meta = meta;
 			this.pendingAgent = undefined;
 			this.pendingRecord = undefined;
 			this.currentViewing = record.id;
-			const bound = bindingOf(folder, record);
+			const bound = bindingOf(meta.appFolder, record);
 			this.bindings.set(piSessionId, bound);
 			this.watchSession(record);
 			return bound;
@@ -166,7 +98,7 @@ export default class Sessions {
 
 	/** Provision the pending controller session: locate its record file inside
 	 * the active app session (pi allocates session files in the default
-	 * sessions dir; the host adapter relocates them). */
+	 * sessions dir; the session relocates them). */
 	private readonly provisionPending = (
 		agent: string,
 	): { recordPath: string; sessionId: string } => {
@@ -182,21 +114,18 @@ export default class Sessions {
 	};
 
 	/** Register the controller session as a fresh agent session (leader's
-	 * child): note + record, on the first user message. */
-	private readonly registerViewing = async (opts: {
+	 * child) on the first user message. */
+	private readonly registerViewing = (opts: {
 		piSessionId: string;
 		agent: string;
 		topic?: string;
-	}): Promise<SessionBinding> => {
+	}): SessionBinding => {
 		if (this.appFolder === undefined) throw new Error('no application session');
 		const { recordPath, sessionId } = this.provisionPending(opts.agent);
-		const notePath = join(this.appFolder, `${sessionId}.md`);
-		await Bun.write(notePath, '');
 		let record!: SessionRecord;
-		await this.writeMeta((meta) => {
+		this.writeMeta((meta) => {
 			record = registerSession(meta, {
 				agent: opts.agent,
-				notePath,
 				recordPath,
 				sessionId,
 				spawnerId: LEADER_ID,
@@ -207,20 +136,19 @@ export default class Sessions {
 		this.currentViewing = sessionId;
 		this.pendingAgent = undefined;
 		this.pendingRecord = undefined;
-		const bound = bindingOf(this.appFolder ?? '', record);
+		const bound = bindingOf(this.appFolder, record);
 		this.bindings.set(opts.piSessionId, bound);
 		this.watchSession(record);
 		return bound;
 	};
 
 	/** The app session's display name: the first user message, untransformed. */
-	private readonly captureFirstMessage = async (text: string): Promise<void> => {
-		if (this.appFolder === undefined) return;
-		const meta = await this.readMeta();
-		if (meta.firstMessage !== undefined) return;
+	private readonly captureFirstMessage = (text: string): void => {
+		const meta = this.meta;
+		if (meta === undefined || meta.firstMessage !== undefined) return;
 		const firstLine = text.split('\n')[0]?.slice(0, 80).trim();
 		if (firstLine === undefined || firstLine === '') return;
-		await this.writeMeta((m) => {
+		this.writeMeta((m) => {
 			m.firstMessage = firstLine;
 		});
 	};
@@ -234,32 +162,36 @@ export default class Sessions {
 			throw new Error('no application session');
 		const sessionId = newSessionId(agent);
 		const recordPath = join(this.appFolder, `${sessionId}.jsonl`);
-		const notePath = join(this.appFolder, `${sessionId}.md`);
-		await Bun.write(notePath, '');
 		let record!: SessionRecord;
-		await this.writeMeta((meta) => {
+		this.writeMeta((meta) => {
 			record = registerSession(meta, {
 				agent,
-				notePath,
 				recordPath,
 				sessionId,
 				spawnerId: from,
 				...(topic === undefined ? {} : { topic }),
 			});
 		});
-		const session = await this.createBackground(record);
-		this.background.set(sessionId, session);
+		const live = await this.createBackground(record);
+		this.sessions.get(sessionId)?.attachLive(live);
 		return { recordPath, sessionId };
 	};
 
-	/** The live session for a harness session id, creating one on demand. */
-	private readonly liveFor = async (sessionId: string): Promise<LiveSession> => {
-		const existing = this.background.get(sessionId);
-		if (existing !== undefined) return existing;
-		const record = (await this.readMeta()).sessions[sessionId];
+	/** The live session for a harness session id: the viewed session itself,
+	 * an attached background session, or one created on demand. */
+	private readonly ensureLive = async (sessionId: string): Promise<Session> => {
+		const existing = this.sessions.get(sessionId);
+		if (this.currentViewing === sessionId && existing !== undefined) return existing;
+		if (existing?.live !== undefined) return existing;
+		const record = this.readMeta().sessions[sessionId];
 		if (record === undefined) throw new Error(`unknown session: ${sessionId}`);
-		const session = await this.createBackground(record);
-		this.background.set(sessionId, session);
+		const live = await this.createBackground(record);
+		const session = this.sessions.get(sessionId);
+		if (session === undefined) {
+			live.dispose();
+			throw new Error(`session did not bind: ${sessionId}`);
+		}
+		session.attachLive(live);
 		return session;
 	};
 
@@ -302,7 +234,7 @@ export default class Sessions {
 	/** A session's record file disappeared: erase the session. A missing
 	 * meta means the whole app folder went — nothing left to erase. */
 	private readonly abortRecord = async (path: string): Promise<void> => {
-		const meta = await this.readMeta().catch(() => {});
+		const meta = this.meta;
 		if (meta === undefined) return;
 		const record = recordByPath(meta, path);
 		if (record !== undefined) await this.erase(record);
@@ -310,7 +242,7 @@ export default class Sessions {
 
 	/** A topic file disappeared: erase the topic's members and descendants. */
 	private readonly abortTopic = async (topic: string): Promise<void> => {
-		const meta = await this.readMeta().catch(() => {});
+		const meta = this.meta;
 		if (meta === undefined) return;
 		for (const id of topicCascade(meta, topic)) {
 			const record = meta.sessions[id];
@@ -323,31 +255,34 @@ export default class Sessions {
 	 * through here. */
 	private readonly beginAppSession = async (root: string): Promise<void> => {
 		this.reset();
-		this.appFolder = (await createAppSession(root)).appFolder;
+		this.meta = await createAppSession(root);
 	};
 
 	private readonly reset = (): void => {
-		for (const session of this.background.values()) session.dispose();
-		this.background.clear();
+		for (const session of this.sessions.values()) session.detachLive()?.dispose();
+		this.sessions.clear();
 		this.bindings.clear();
 		for (const dir of this.trackedDirs.values()) dir.close();
 		this.trackedDirs.clear();
-		this.appFolder = undefined;
+		this.meta = undefined;
 		this.currentViewing = undefined;
 		this.pendingAgent = undefined;
 		this.pendingRecord = undefined;
 	};
 
-	private readonly readMeta = (): Promise<AppMeta> => {
-		if (this.appFolder === undefined)
-			return Promise.reject(new Error('no application session'));
-		return new MetaStore(this.appFolder).read();
+	/** The in-memory meta of the active app session. */
+	private readonly readMeta = (): AppMeta => {
+		if (this.meta === undefined) throw new Error('no application session');
+		return this.meta;
 	};
 
-	private readonly writeMeta = (fn: (meta: AppMeta) => void): Promise<AppMeta> => {
-		if (this.appFolder === undefined)
-			return Promise.reject(new Error('no application session'));
-		return new MetaStore(this.appFolder).mutate(fn);
+	/** Mutate the in-memory meta and persist it fire-and-forget. */
+	private readonly writeMeta = (fn: (meta: AppMeta) => void): AppMeta => {
+		const meta = this.readMeta();
+		fn(meta);
+		// A vanished app folder (manual deletion) is not an error here.
+		void persistMeta(meta).catch(() => {});
+		return meta;
 	};
 
 	/** Create a background SDK session continuing `record` and bind its identity.
@@ -368,74 +303,48 @@ export default class Sessions {
 
 	/** Remove a session: live instance, record + note files, and meta entry. */
 	private async erase(record: SessionRecord): Promise<void> {
-		this.background.get(record.id)?.dispose();
-		this.background.delete(record.id);
+		this.sessions.get(record.id)?.detachLive()?.dispose();
+		this.sessions.delete(record.id);
 		await rm(record.recordPath, { force: true });
-		await rm(record.notePath, { force: true });
-		await this.writeMeta((m) => {
+		await rm(join(this.appFolder ?? dirname(record.recordPath), `${record.id}.md`), {
+			force: true,
+		});
+		this.writeMeta((m) => {
 			delete m.sessions[record.id];
 		});
 	}
 
-	constructor(ctx: { registerSection: (section: PromptSection) => void }) {
-		ctx.registerSection({ priority: 100, render: identitySection, tier: 'system' });
-		ctx.registerSection({
-			priority: 200,
-			render: topicSection,
-			tier: 'conditional',
-			title: 'Topic Context',
-		});
-		ctx.registerSection({
-			priority: 300,
-			render: noteSection,
-			tier: 'system',
-			title: 'Personal Note',
-		});
-		ctx.registerSection({
-			priority: 300,
-			render: noteDynamic,
-			tier: 'periodic',
-			title: 'Personal Note Content',
-		});
-		ctx.registerSection({
-			priority: 500,
-			render: this.talkable,
-			tier: 'conditional',
-			title: 'Other Agents (Talkable)',
-		});
-	}
-
 	root = {
-		activate: (appFolder: string): void => {
-			this.appFolder = appFolder;
+		activate: (meta: AppMeta): void => {
+			this.meta = meta;
 		},
 		appFolder: (): string | undefined => this.appFolder,
 		armPending: (agent: string): void => {
 			this.pendingAgent = agent;
 			this.pendingRecord = undefined;
 		},
-		backgroundOf: (id: string): LiveSession | undefined => this.background.get(id),
 		beginAppSession: this.beginAppSession,
 		bindByFile: this.bindByFile,
+		/** Track a session instance under its harness session id. */
+		bindSession: (sessionId: string, session: Session): void => {
+			this.sessions.set(sessionId, session);
+		},
 		bindingOf: (piSessionId: string): SessionBinding | undefined =>
 			this.bindings.get(piSessionId),
 		captureFirstMessage: this.captureFirstMessage,
-		liveFor: this.liveFor,
+		ensureLive: this.ensureLive,
 		meta: this.readMeta,
 		mutateMeta: this.writeMeta,
 		pendingAgent: (): string | undefined => this.pendingAgent,
 		provisionPending: this.provisionPending,
-		putBackground: (id: string, live: LiveSession): void => {
-			this.background.set(id, live);
+		putLive: (id: string, live: LiveSession): void => {
+			this.sessions.get(id)?.attachLive(live);
 		},
 		registerViewing: this.registerViewing,
 		reset: this.reset,
+		sessionOf: (id: string): Session | undefined => this.sessions.get(id),
 		spawn: this.spawn,
-		takeBackground: (id: string): LiveSession | undefined => {
-			const live = this.background.get(id);
-			this.background.delete(id);
-			return live;
-		},
+		takeLive: (id: string): LiveSession | undefined => this.sessions.get(id)?.detachLive(),
 		/** The controller cwd, used to create background sessions. */
 		useCwd: (cwd: string): void => {
 			this.cwd = cwd;

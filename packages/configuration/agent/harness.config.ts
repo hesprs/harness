@@ -2,15 +2,13 @@ import {
 	defineAgent,
 	defineBaseAgent,
 	skill,
+	toolApplyPatch,
 	toolBash,
-	toolDelete,
-	toolEdit,
 	toolFetch,
 	toolFind,
 	toolGrep,
 	toolRead,
 	toolSearch,
-	toolWrite,
 } from '@hesprs/harness';
 import { resolve } from 'node:path';
 
@@ -30,15 +28,13 @@ defineBaseAgent({
 
 defineAgent({
 	description:
-		'Fast execution specialist. Receives complete context and task spec, completes defined task efficiently.',
+		'Fast execution specialist. Receives complete context and task spec, completes defined tasks efficiently.',
 	extensions: [
 		toolBash,
-		toolDelete,
 		toolFetch,
 		toolRead,
 		toolSearch,
-		toolWrite,
-		toolEdit,
+		toolApplyPatch,
 		toolFind,
 		toolGrep,
 		skill([
@@ -48,7 +44,7 @@ defineAgent({
 			p('./skill/query-docs'),
 		]),
 	],
-	model: 'zai/glm-5.3',
+	model: 'zai/glm-5.3-flash',
 	name: 'worker',
 	prompt: workerPrompt,
 	thinking: 'high',

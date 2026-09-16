@@ -12,13 +12,12 @@ import { defineTool } from '@earendil-works/pi-coding-agent';
 import { kernel, LEADER_ID } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
-import registry from '@/registry.ts';
 import { registerActive } from './common.ts';
 
-/** Catalog of the allowed agents. Descriptions come from the global registry. */
+/** Catalog of the allowed agents. Descriptions come from the kernel registry. */
 function spawnCatalog(agents: Array<string>): string {
 	const entries = agents
-		.map((name) => ({ description: registry.get(name)?.description, name }))
+		.map((name) => ({ description: kernel().get(name)?.description, name }))
 		.filter((entry) => entry.description !== undefined);
 	if (entries.length === 0) return '';
 	return `## Spawnable Agents\n\n${entries

@@ -3,7 +3,7 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig({
 	deps,
-	dts: true,
+	dts: { eager: true },
 	entry: 'src/index.ts',
 	minify: true,
 	outExtensions: () => ({ js: '.js' }),

@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// oxlint-disable no-console
 
 import { mkdirSync, renameSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -49,6 +50,7 @@ export class PatternMatcher {
 			return `(?:${reg}$)`;
 		});
 
+		// oxlint-disable-next-line eslint/require-unicode-regexp : patterns come from user config, not literals
 		this.regex = new RegExp(regexParts.join('|'));
 	}
 
@@ -70,11 +72,16 @@ export async function loadGitignore(root: string): Promise<Array<string>> {
 		.filter((line) => line && !line.startsWith('#'));
 }
 
+/** The codemap file selection filters, shared by scanning and state building. */
+type Patterns = {
+	includePatterns: Array<string>;
+	excludePatterns: Array<string>;
+	exceptions: Array<string>;
+};
+
 export async function selectFiles(
 	root: string,
-	includePatterns: Array<string>,
-	excludePatterns: Array<string>,
-	exceptions: Array<string>,
+	{ includePatterns, excludePatterns, exceptions }: Patterns,
 	gitignorePatterns: Array<string>,
 ): Promise<Array<string>> {
 	const includeMatcher = new PatternMatcher(includePatterns);
@@ -109,10 +116,7 @@ export async function computeFileHash(root: string, relPath: string): Promise<st
 	}
 }
 
-export async function computeFolderHash(
-	folder: string,
-	fileHashes: Record<string, string>,
-): Promise<string> {
+export function computeFolderHash(folder: string, fileHashes: Record<string, string>): string {
 	const folderFiles = Object.entries(fileHashes)
 		.filter(
 			([filePath]) =>
@@ -162,7 +166,7 @@ export async function loadState(root: string): Promise<CodemapState | undefined>
 	try {
 		return JSON.parse(await file.text()) as CodemapState;
 	} catch {
-		return;
+		// Corrupt state: treat as absent.
 	}
 }
 
@@ -204,9 +208,7 @@ export async function createEmptyCodemap(folderPath: string, folderName: string)
 
 async function buildState(
 	root: string,
-	includePatterns: Array<string>,
-	excludePatterns: Array<string>,
-	exceptions: Array<string>,
+	patterns: Patterns,
 	selectedFiles: Array<string>,
 ): Promise<{ state: CodemapState; folders: Set<string> }> {
 	const fileHashes: Record<string, string> = {};
@@ -220,16 +222,15 @@ async function buildState(
 
 	const folders = getFoldersWithFiles(selectedFiles);
 	const folderHashes: Record<string, string> = {};
-	for (const folder of folders)
-		folderHashes[folder] = await computeFolderHash(folder, fileHashes);
+	for (const folder of folders) folderHashes[folder] = computeFolderHash(folder, fileHashes);
 
 	const state: CodemapState = {
 		file_hashes: fileHashes,
 		folder_hashes: folderHashes,
 		metadata: {
-			exceptions,
-			exclude_patterns: excludePatterns,
-			include_patterns: includePatterns,
+			exceptions: patterns.exceptions,
+			exclude_patterns: patterns.excludePatterns,
+			include_patterns: patterns.includePatterns,
 			last_run: new Date().toISOString(),
 			root,
 			version: VERSION,
@@ -256,23 +257,12 @@ export async function cmdInit(options: CommandOptions & { root: string }): Promi
 	console.log(`Exclude patterns: ${JSON.stringify(excludePatterns)}`);
 	console.log(`Exceptions: ${JSON.stringify(exceptions)}`);
 
-	const selectedFiles = await selectFiles(
-		resolvedRoot,
-		includePatterns,
-		excludePatterns,
-		exceptions,
-		gitignore,
-	);
+	const patterns = { exceptions, excludePatterns, includePatterns };
+	const selectedFiles = await selectFiles(resolvedRoot, patterns, gitignore);
 
 	console.log(`Selected ${selectedFiles.length} files`);
 
-	const { state, folders } = await buildState(
-		resolvedRoot,
-		includePatterns,
-		excludePatterns,
-		exceptions,
-		selectedFiles,
-	);
+	const { state, folders } = await buildState(resolvedRoot, patterns, selectedFiles);
 
 	await saveState(resolvedRoot, state);
 	console.log(`Created ${STATE_DIR}/${STATE_FILE}`);
@@ -302,9 +292,7 @@ export async function cmdChanges(options: CommandOptions & { root: string }): Pr
 	const gitignore = await loadGitignore(resolvedRoot);
 	const currentFiles = await selectFiles(
 		resolvedRoot,
-		includePatterns,
-		excludePatterns,
-		exceptions,
+		{ exceptions, excludePatterns, includePatterns },
 		gitignore,
 	);
 	const hashPromises = currentFiles.map(async (relPath) => {
@@ -369,20 +357,9 @@ export async function cmdUpdate(options: CommandOptions & { root: string }): Pro
 	const excludePatterns = metadata.exclude_patterns ?? [];
 	const exceptions = metadata.exceptions ?? [];
 	const gitignore = await loadGitignore(resolvedRoot);
-	const selectedFiles = await selectFiles(
-		resolvedRoot,
-		includePatterns,
-		excludePatterns,
-		exceptions,
-		gitignore,
-	);
-	const { state: nextState } = await buildState(
-		resolvedRoot,
-		includePatterns,
-		excludePatterns,
-		exceptions,
-		selectedFiles,
-	);
+	const patterns = { exceptions, excludePatterns, includePatterns };
+	const selectedFiles = await selectFiles(resolvedRoot, patterns, gitignore);
+	const { state: nextState } = await buildState(resolvedRoot, patterns, selectedFiles);
 
 	await saveState(resolvedRoot, nextState);
 	console.log(`Updated ${STATE_DIR}/${STATE_FILE} with ${selectedFiles.length} files`);
@@ -443,4 +420,4 @@ export async function main(argv: Array<string> = process.argv.slice(2)): Promise
 
 const currentFilePath = import.meta.path;
 if (process.argv[1] && path.resolve(process.argv[1]) === currentFilePath)
-	void main().then((code) => process.exit(code));
+	process.exit(await main());

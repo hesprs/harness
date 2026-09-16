@@ -145,4 +145,31 @@ By default (user starts `pi` or user uses Pi's built-in `new` command, so there'
 
 Shifting to an existing session points the controller session at that session's record: the message waterfall is cleaned and repopulated with that session's messages, then native streaming continues from there. Shifting to a `new` agent clears the message waterfall immediately, ready for the new agent's footage. Because the viewed session runs on the controller session itself, streaming, the waterfall and the working loader are all Pi-native.
 
-The user sending a message in a viewed session is `commander-00001` `talking` to that session: the input is intercepted and re-delivered as a user-role message framed like any other talk notice (`[talk from your commander-00001 (leader)] …`) via `pi.sendUserMessage`, so the turn itself — streaming, waterfall, working loader — stays Pi-native.
+The user sending a message in a viewed session is `commander-00001` `talking` to that session; the input is intercepted and re-delivered as a user-role message framed like any other talk notice.
+
+## Architecture
+
+Pi extensions are isolated and reloaded by default per Pi agent session. The harness core extension must achieve global singleton to coordinate agent sessions.
+
+### Controller
+
+At start, the extension will check `globalThis` for `harnessController` existence. If the controller doesn't exist, it instantiates a new `Controller` class and inject it into `globalThis`. So a harness controller instance is only instantiated once per Pi process.
+
+The controller has following responsibilities:
+
+- Runs CWD and `~/.pi/agent/` `harness.config.ts` and merge agent definitions (user `/reload` should reloads this again).
+- Maintains a map of agent sessions inside an APP session. Keyed by agent session ID
+- Provides method for child spawning and talking with sender (spawner), receiver (spawned agent), along with other arguments when necessary.
+- Maintains an agent hierarchy record according to tracked spawn calls; and provides a method to obtaining the prompt of all talkable agents for an agent with specific ID.
+- Maintains file watchers on agents' record files and topic files, deleted files aborts corresponding sessions.
+- Handles the special talk, spawn, and agent description of `commander-00001`.
+- Keeps track of what current TUI-viewing session ID is, and provides method to shift to that session by providing the target ID.
+- The controller might use SynthKernel framework to split work between agent definition management, session management (hierarchy tracking, talk, spawn, file watchers), and session shifts with Pi core patch.
+
+Each session instantiates its own `Session` class, kept track inside controller's sessions map. Responsibilities:
+
+- Know the agent session of itself, and provides that in every `Controller.talk`, `spawn`, and talkable agent prompt obtain calls.
+- Applies agent definitions, constructs its prompt, registers slash commands, and runs defined extensions against its own `pi: ExtensionAPI`.
+- Current TUI-viewing agent session should keep no abstraction difference with those in background.
+- Provides method for talking to this agent session, called by the controller.
+- Provides method for obtaining this agent's description for display in agents' system remainder talkable agents, called by the controller. The class should dispatch this as a Pi event with mutable payloads for other extensions to intercept and modify this description prompt easily.

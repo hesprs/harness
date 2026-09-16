@@ -1,34 +1,24 @@
+import type { BaseAgentArgs, NamedAgentArgs } from '@repo/shared/contract';
 /**
  * The publishable package. `harness.config.ts` imports these to declare
- * agents and compose agent extensions.
+ * agents and compose agent extensions. Agent registration routes through
+ * the framework kernel on globalThis (see `@repo/shared/contract`) so all
+ * module copies share one registry.
  */
-import type { ThinkingLevel } from '@earendil-works/pi-agent-core';
-import type { Extension } from '@repo/shared/contract';
-import registry from './registry.ts';
+import { kernel } from '@repo/shared/contract';
 
 // Define extensions that all agents share
-export function defineBaseAgent(args: {
-	model?: string;
-	thinking?: ThinkingLevel;
-	prompt?: string;
-	extensions?: Array<Extension>;
-}): void {
-	registry.defineBaseAgent(args);
+export function defineBaseAgent(args: BaseAgentArgs): void {
+	kernel().defineBaseAgent(args);
 }
 
 // Define a standalone agent, returns the agent name
-export function defineAgent(args: {
-	name: string;
-	description: string;
-	model?: string;
-	thinking?: ThinkingLevel;
-	prompt?: string;
-	extensions?: Array<Extension>;
-}): string {
-	return registry.defineAgent(args);
+export function defineAgent(args: NamedAgentArgs): string {
+	return kernel().defineAgent(args);
 }
 
-export { LEADER_ID } from '../../shared/src/contract.ts';
+export { LEADER_ID } from '@repo/shared/contract';
+export { default as personalNote } from '@/note.ts';
 export { default as skill } from '@/skill.ts';
 export { toolEdit } from '@/tools/edit.ts';
 export { toolRead } from '@/tools/read.ts';

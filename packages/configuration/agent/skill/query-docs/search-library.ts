@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// oxlint-disable no-console
 
 const USAGE = `Usage: bun path/to/skill/search-library.ts [--type <txt|json>] <libraryName> <query...>`;
 
@@ -19,7 +20,7 @@ let type = 'json';
 const args: Array<string> = [];
 
 for (let i = 0; i < rawArgs.length; i += 1) {
-	const arg = rawArgs[i]!;
+	const arg = rawArgs[i] ?? '';
 
 	if (arg === '--type' || arg === '-t') {
 		const next = rawArgs[i + 1];

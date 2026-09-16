@@ -14,18 +14,15 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppMeta, SessionRecord } from '@/model';
 import type { TuiInternals } from '@/patch';
-import type { LiveSession } from '@/Sessions';
-import Controller from '@/Controller';
-import { MetaStore, createAppSession, registerSession } from '@/model';
+import type Session from '@/Session';
+import Controller, { decodeTalk, encodeTalk, formatTalkNotice, relationship } from '@/Controller';
+import { createAppSession, registerSession } from '@/model';
 import { announceAdoption, ensureStreamingComponent } from '@/patch';
 import Sessions from '@/Sessions';
 
 const agentDir = join(homedir(), '.pi', 'agent');
 
-type SentTalk = { content: string; deliverAs: string; triggerTurn: boolean };
-
 function makePi() {
-	const sent: Array<SentTalk> = [];
 	const appended: Array<{ customType: string; data: unknown }> = [];
 	const commands = new Map<string, (args: string | undefined, ctx: unknown) => Promise<void>>();
 	const renderers = new Map<string, (message: { content: string }) => unknown>();
@@ -49,13 +46,6 @@ function makePi() {
 		) => {
 			renderers.set(type, render);
 		},
-		sendMessage: (
-			message: { content: string },
-			options: { deliverAs: string; triggerTurn: boolean },
-		) => {
-			sent.push({ content: message.content, ...options });
-			return Promise.resolve();
-		},
 	};
 	return {
 		appended,
@@ -63,73 +53,54 @@ function makePi() {
 		entryRenderers,
 		pi: pi as unknown as ExtensionAPI,
 		renderers,
-		sent,
 	};
 }
 
-function stubSession(actions: Array<string>, streaming = false): LiveSession {
-	return {
-		dispose: () => {
-			actions.push('dispose');
+/** A session stand-in recording deliveries and info. */
+function fakeSession(description = 'session description') {
+	const delivered: Array<{ from: string; rel: string; message: string }> = [];
+	const session = {
+		deliver: (from: string, rel: string, message: string) => {
+			delivered.push({ from, message, rel });
 		},
-		isStreaming: streaming,
-		prompt: (text: string, options?: { source: 'extension' }) => {
-			actions.push(`prompt:${options?.source ?? 'interactive'}:${text}`);
-			return Promise.resolve();
-		},
-		sessionManager: { getSessionFile: () => {} },
-		steer: (text: string) => {
-			actions.push(`steer:${text}`);
-			return Promise.resolve();
-		},
+		detachLive: () => {},
+		info: (base: string) => `${base}\n${description}`,
 	};
+	return { delivered, session: session as unknown as Session };
 }
-
-/** Sessions/Agents root stub for tests that only exercise the handoff patches. */
-const unusedRoot = {
-	activate: () => {},
-	appFolder: () => {},
-	armPending: () => {},
-	backgroundOf: () => {},
-	beginAppSession: () => Promise.resolve(),
-	defaultAgent: () => Promise.resolve(),
-	liveFor: () => Promise.reject(new Error('unused')),
-	meta: () => Promise.reject(new Error('unused')),
-	mutateMeta: () => Promise.reject(new Error('unused')),
-	names: () => [] as Array<string>,
-	pendingAgent: () => {},
-	putBackground: () => {},
-	rememberDefault: () => Promise.resolve(),
-	reset: () => {},
-	takeBackground: () => {},
-	viewing: () => {},
-} as unknown as ConstructorParameters<typeof Controller>[0];
 
 type AddOpts = { parent?: string; topic?: string; leader?: string };
 
 async function setup() {
 	const root = mkdtempSync(join(tmpdir(), 'harness-controller-'));
 	const app = await createAppSession(root);
-	const sessions = new Sessions({ registerSection: () => {} });
-	sessions.root.activate(app.appFolder);
-	const store = new MetaStore(app.appFolder);
-	const actions: Array<string> = [];
-	const { appended, commands, entryRenderers, pi, renderers, sent } = makePi();
+	const sessions = new Sessions();
+	sessions.root.activate(app);
+	const bound = new Map<string, Session>();
+	const { appended, commands, entryRenderers, pi, renderers } = makePi();
+	const { delivered, session: fake } = fakeSession();
+	bound.set('A', fake);
 	const controller = new Controller({
 		...sessions.root,
 		defaultAgent: () => Promise.resolve('coder'),
+		ensureLive: (id: string) => {
+			const session = bound.get(id);
+			if (session === undefined) return Promise.reject(new Error(`unknown session: ${id}`));
+			return Promise.resolve(session);
+		},
+		get: (name: string) => (name === 'coder' ? { description: 'writes code' } : undefined),
 		names: () => ['coder'],
 		rememberDefault: () => Promise.resolve(),
+		sessionOf: (id: string) => bound.get(id),
 	});
 	const notified: Array<string> = [];
 	controller.root.registerSurface(pi);
 	controller.root.attachSession(pi, { ui: { notify: (m) => notified.push(m) } });
-	async function addSession(id: string, opts?: AddOpts): Promise<SessionRecord> {
+	function addSession(id: string, opts?: AddOpts): SessionRecord {
 		let record: SessionRecord | undefined;
-		await store.mutate((meta: AppMeta) => {
+		sessions.root.mutateMeta((meta: AppMeta) => {
 			record = registerSession(meta, {
 				agent: 'coder',
-				notePath: join(app.appFolder, `${id}.md`),
 				recordPath: join(app.appFolder, `${id}.jsonl`),
 				sessionId: id,
 				spawnerId: opts?.parent ?? LEADER_ID,
@@ -143,17 +114,17 @@ async function setup() {
 		return record as SessionRecord;
 	}
 	return {
-		actions,
 		addSession,
 		appFolder: app.appFolder,
 		appended,
+		bound,
 		commands,
 		controller,
+		delivered,
 		entryRenderers,
 		notified,
 		renderers,
 		root,
-		sent,
 		sessions,
 	};
 }
@@ -176,11 +147,11 @@ test('registerSurface registers commands and the talk renderer at factory time',
 });
 
 test('talk to the leader records a leader talk and notifies', async () => {
-	const { addSession, appFolder, controller, notified, root } = await setup();
+	const { addSession, controller, notified, root, sessions } = await setup();
 	try {
-		await addSession('A');
+		addSession('A');
 		await controller.root.deliverTalk('A', LEADER_ID, 'hello');
-		const talks = (await new MetaStore(appFolder).read()).leaderTalks;
+		const talks = sessions.root.meta().leaderTalks;
 		expect(talks?.[0]?.from).toBe('A');
 		expect(talks?.[0]?.message).toBe('hello');
 		expect(talks?.[0]?.relationship).toBe('child');
@@ -190,62 +161,14 @@ test('talk to the leader records a leader talk and notifies', async () => {
 	}
 });
 
-test('talk to the viewed session goes to the foreground', async () => {
-	const { addSession, controller, root, sent, sessions } = await setup();
+test('talk to a session routes through ensureLive into the session', async () => {
+	const { addSession, bound, controller, root } = await setup();
 	try {
-		await addSession('A');
-		await addSession('B');
-		await sessions.root.bindByFile(
-			'pi-x',
-			join(sessions.root.appFolder() ?? '', 'A.jsonl'),
-			root,
-		);
-		await controller.root.deliverTalk('B', 'A', 'to viewed');
-		expect(sent).toHaveLength(1);
-		expect(sent[0]?.deliverAs).toBe('steer');
-		expect(sent[0]?.triggerTurn).toBe(true);
-		expect(JSON.parse(sent[0]?.content ?? '')).toEqual({
-			from: 'B',
-			message: 'to viewed',
-			relationship: 'colleague',
-		});
-	} finally {
-		rmSync(root, { force: true, recursive: true });
-	}
-});
-
-test('talk delivery does not wait for the target turn', async () => {
-	const { addSession, controller, root, sessions } = await setup();
-	try {
-		await addSession('slow');
-		const hung: LiveSession = {
-			dispose: () => {},
-			isStreaming: false,
-			prompt: () => new Promise(() => {}),
-			sessionManager: { getSessionFile: () => {} },
-			steer: () => new Promise(() => {}),
-		};
-		sessions.root.putBackground('slow', hung);
-		// Resolves even though the delivery promise never settles.
-		await controller.root.deliverTalk(LEADER_ID, 'slow', 'go');
-	} finally {
-		rmSync(root, { force: true, recursive: true });
-	}
-});
-
-test('talk to a streaming background session steers; an idle one prompts', async () => {
-	const { actions, addSession, controller, root, sessions } = await setup();
-	try {
-		await addSession('busy');
-		await addSession('idle');
-		sessions.root.putBackground('busy', stubSession(actions, true));
-		sessions.root.putBackground('idle', stubSession(actions, false));
-		await controller.root.deliverTalk(LEADER_ID, 'busy', 'mid-turn');
-		await controller.root.deliverTalk(LEADER_ID, 'idle', 'wake up');
-		expect(actions).toEqual([
-			'steer:[talk from `commander-00001` (leader)] mid-turn',
-			'prompt:extension:[talk from `commander-00001` (leader)] wake up',
-		]);
+		addSession('B');
+		const { delivered: targetDelivered, session: target } = fakeSession('b');
+		bound.set('B', target);
+		await controller.root.deliverTalk(LEADER_ID, 'B', 'do it');
+		expect(targetDelivered).toEqual([{ from: LEADER_ID, message: 'do it', rel: 'leader' }]);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -266,9 +189,34 @@ test('talk to an unknown session throws', async () => {
 test('formatLeaderTalk addresses the viewed session from the leader', async () => {
 	const { addSession, controller, root } = await setup();
 	try {
-		await addSession('A');
-		const text = await controller.root.formatLeaderTalk('A', 'hello');
+		addSession('A');
+		const text = controller.root.formatLeaderTalk('A', 'hello');
 		expect(text).toBe('[talk from `commander-00001` (leader)] hello');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('talkableFor renders roster entries as agent-wrapped text with live info dispatched', async () => {
+	const { addSession, bound, controller, root } = await setup();
+	try {
+		addSession('A', { parent: LEADER_ID });
+		addSession('B', { parent: LEADER_ID });
+		const { session } = fakeSession('live description');
+		bound.set('B', session);
+		const entries = controller.root.talkableFor('A');
+		expect(entries.every((e) => e.startsWith('<agent>\n') && e.endsWith('\n</agent>'))).toBe(
+			true,
+		);
+		// B is live: its content passed through session.info and was extended.
+		const b = entries.find((e) => e.includes('<id>B</id>'));
+		expect(b).toContain('<relation>colleague</relation>');
+		expect(b).toContain('live description');
+		// No <type> element anymore.
+		expect(entries.join('\n')).not.toContain('<type>');
+		// The leader entry is fixed.
+		const leader = entries.find((e) => e.includes(`<id>${LEADER_ID}</id>`));
+		expect(leader).toContain('<relation>leader</relation>');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -278,20 +226,21 @@ test('/shift new arms the picked agent, remembers it and swaps to a fresh sessio
 	const root = mkdtempSync(join(tmpdir(), 'harness-controller-shift-'));
 	try {
 		const app = await createAppSession(root);
-		const sessions = new Sessions({ registerSection: () => {} });
-		sessions.root.activate(app.appFolder);
+		const sessions = new Sessions();
+		sessions.root.activate(app);
 		const remembered: Array<string> = [];
 		const armed: Array<string> = [];
 		const calls: Array<string> = [];
 		const { commands, pi } = makePi();
 		const controller = new Controller({
 			...sessions.root,
-			armPending: (agent) => {
+			armPending: (agent: string) => {
 				armed.push(agent);
 			},
 			defaultAgent: () => Promise.resolve('coder'),
+			get: () => {},
 			names: () => ['coder', 'writer'],
-			rememberDefault: (agent) => {
+			rememberDefault: (agent: string) => {
 				remembered.push(agent);
 				return Promise.resolve();
 			},
@@ -318,9 +267,9 @@ test('/shift new arms the picked agent, remembers it and swaps to a fresh sessio
 });
 
 test('/talks replays stored leader talks into the waterfall as UI-only entries', async () => {
-	const { commands, root, sessions, appended, sent } = await setup();
+	const { appended, commands, root, sessions } = await setup();
 	try {
-		await sessions.root.mutateMeta((m) => {
+		sessions.root.mutateMeta((m) => {
 			(m.leaderTalks ??= []).push({
 				at: new Date().toISOString(),
 				from: 'A',
@@ -329,17 +278,75 @@ test('/talks replays stored leader talks into the waterfall as UI-only entries',
 			});
 		});
 		await commands.get('talks')?.(undefined, {});
-		expect(sent).toHaveLength(0);
 		expect(appended).toEqual([
 			{
 				customType: 'talk',
-				data: { at: expect.any(String), from: 'A', message: 'ping', relationship: 'child' },
+				data: {
+					at: expect.any(String) as string,
+					from: 'A',
+					message: 'ping',
+					relationship: 'child',
+				},
 			},
 		]);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
 });
+
+function metaWith(...records: Array<Partial<SessionRecord> & { id: string }>): AppMeta {
+	const base = { agent: 'default', createdAt: '', recordPath: '', status: 'running' } as const;
+	return {
+		appFolder: '/app',
+		appSessionId: 'app',
+		sessions: Object.fromEntries(records.map((r) => [r.id, { ...base, ...r }])),
+	};
+}
+
+test('relationship: topic members, leader and children', () => {
+	const meta = metaWith(
+		{ id: 'A', leaderSessionId: LEADER_ID, topic: '/t.md' },
+		{ id: 'B', leaderSessionId: LEADER_ID, topic: '/t.md' },
+		{ id: 'C', parentSessionId: LEADER_ID },
+		{ id: 'D', parentSessionId: LEADER_ID },
+	);
+	expect(relationship(meta, 'A', LEADER_ID)).toBe('leader');
+	expect(relationship(meta, LEADER_ID, 'A')).toBe('child');
+	expect(relationship(meta, 'A', 'B')).toBe('colleague');
+	expect(relationship(meta, 'C', 'D')).toBe('colleague');
+	expect(relationship(meta, 'A', 'C')).toBeUndefined();
+});
+
+test('formatTalkNotice and encode/decodeTalk round-trip', () => {
+	expect(formatTalkNotice('A', 'colleague', 'hello')).toBe('[talk from `A` (colleague)] hello');
+	const encoded = encodeTalk('A', 'child', 'hi');
+	expect(encoded.customType).toBe('talk');
+	expect(decodeTalk(encoded.content)).toEqual({
+		from: 'A',
+		message: 'hi',
+		relationship: 'child',
+	});
+});
+
+/** Sessions/Agents root stub for tests that only exercise the handoff patches. */
+const unusedRoot = {
+	activate: () => {},
+	appFolder: () => {},
+	armPending: () => {},
+	beginAppSession: () => Promise.resolve(),
+	defaultAgent: () => Promise.resolve(),
+	ensureLive: () => Promise.reject(new Error('unused')),
+	get: () => {},
+	meta: () => Promise.reject(new Error('unused')),
+	mutateMeta: () => Promise.reject(new Error('unused')),
+	names: () => [] as Array<string>,
+	putLive: () => {},
+	rememberDefault: () => Promise.resolve(),
+	reset: () => {},
+	sessionOf: () => {},
+	takeLive: () => {},
+	viewing: () => {},
+} as unknown as ConstructorParameters<typeof Controller>[0];
 
 test('a shielded session survives dispose and is captured once', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'harness-handoff-'));
