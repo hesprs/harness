@@ -6,7 +6,7 @@ import {
 	createAgentSessionServices,
 	SessionManager,
 } from '@earendil-works/pi-coding-agent';
-import { Markdown } from '@earendil-works/pi-tui';
+import { VStack } from '@earendil-works/pi-tui';
 import { LEADER_ID } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -25,8 +25,14 @@ const agentDir = join(homedir(), '.pi', 'agent');
 function makePi() {
 	const appended: Array<{ customType: string; data: unknown }> = [];
 	const commands = new Map<string, (args: string | undefined, ctx: unknown) => Promise<void>>();
-	const renderers = new Map<string, (message: { content: string }) => unknown>();
-	const entryRenderers = new Map<string, (entry: { data?: unknown }) => unknown>();
+	const renderers = new Map<
+		string,
+		(message: { content: string }, options: unknown, theme: unknown) => unknown
+	>();
+	const entryRenderers = new Map<
+		string,
+		(entry: { data?: unknown }, options: unknown, theme: unknown) => unknown
+	>();
 	const pi = {
 		appendEntry: (customType: string, data?: unknown) => {
 			appended.push({ customType, data });
@@ -37,12 +43,15 @@ function makePi() {
 		) => {
 			commands.set(name, options.handler);
 		},
-		registerEntryRenderer: (type: string, render: (entry: { data?: unknown }) => unknown) => {
+		registerEntryRenderer: (
+			type: string,
+			render: (entry: { data?: unknown }, options: unknown, theme: unknown) => unknown,
+		) => {
 			entryRenderers.set(type, render);
 		},
 		registerMessageRenderer: (
 			type: string,
-			render: (message: { content: string }) => unknown,
+			render: (message: { content: string }, options: unknown, theme: unknown) => unknown,
 		) => {
 			renderers.set(type, render);
 		},
@@ -55,6 +64,9 @@ function makePi() {
 		renderers,
 	};
 }
+
+/** Theme stand-in: identity foreground. */
+const theme = { fg: (_color: string, text: string) => text } as never;
 
 /** A session stand-in recording deliveries and info. */
 function fakeSession(description = 'session description') {
@@ -93,9 +105,8 @@ async function setup() {
 		rememberDefault: () => Promise.resolve(),
 		sessionOf: (id: string) => bound.get(id),
 	});
-	const notified: Array<string> = [];
 	controller.root.registerSurface(pi);
-	controller.root.attachSession(pi, { ui: { notify: (m) => notified.push(m) } });
+	controller.root.attachSession(pi);
 	function addSession(id: string, opts?: AddOpts): SessionRecord {
 		let record: SessionRecord | undefined;
 		sessions.root.mutateMeta((meta: AppMeta) => {
@@ -122,7 +133,6 @@ async function setup() {
 		controller,
 		delivered,
 		entryRenderers,
-		notified,
 		renderers,
 		root,
 		sessions,
@@ -134,20 +144,24 @@ test('registerSurface registers commands and the talk renderer at factory time',
 	expect([...commands.keys()].sort()).toEqual(['apps', 'shift', 'talks']);
 	const render = renderers.get('talk');
 	expect(render).toBeDefined();
-	const component = render?.({
-		content: JSON.stringify({ from: 'A', message: 'hi', relationship: 'child' }),
-	});
-	expect(component).toBeInstanceOf(Markdown);
+	const component = render?.(
+		{ content: JSON.stringify({ from: 'A', message: 'hi', relationship: 'child' }) },
+		undefined,
+		theme,
+	);
+	expect(component).toBeInstanceOf(VStack);
 	const renderEntry = entryRenderers.get('talk');
 	expect(renderEntry).toBeDefined();
-	const entryComponent = renderEntry?.({
-		data: { at: '', from: 'A', message: 'hi', relationship: 'child' },
-	});
-	expect(entryComponent).toBeInstanceOf(Markdown);
+	const entryComponent = renderEntry?.(
+		{ data: { at: '', from: 'A', message: 'hi', relationship: 'child' } },
+		undefined,
+		theme,
+	);
+	expect(entryComponent).toBeInstanceOf(VStack);
 });
 
-test('talk to the leader records a leader talk and notifies', async () => {
-	const { addSession, controller, notified, root, sessions } = await setup();
+test('talk to the leader from a background session records the talk and appends a waterfall entry', async () => {
+	const { addSession, appended, controller, root, sessions } = await setup();
 	try {
 		addSession('A');
 		await controller.root.deliverTalk('A', LEADER_ID, 'hello');
@@ -155,7 +169,29 @@ test('talk to the leader records a leader talk and notifies', async () => {
 		expect(talks?.[0]?.from).toBe('A');
 		expect(talks?.[0]?.message).toBe('hello');
 		expect(talks?.[0]?.relationship).toBe('child');
-		expect(notified[0]).toBe('`A`: hello');
+		expect(appended).toEqual([
+			{
+				customType: 'talk',
+				data: {
+					at: expect.any(String) as string,
+					from: 'A',
+					message: 'hello',
+					relationship: 'child',
+				},
+			},
+		]);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('talk to the leader from the viewed session appends no entry: the tool result renders it', async () => {
+	const { appended, controller, root, sessions } = await setup();
+	try {
+		const binding = sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
+		await controller.root.deliverTalk(binding.sessionId, LEADER_ID, 'hello');
+		expect(sessions.root.meta().leaderTalks?.[0]?.message).toBe('hello');
+		expect(appended).toEqual([]);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -246,7 +282,7 @@ test('/shift new arms the picked agent, remembers it and swaps to a fresh sessio
 			},
 		});
 		controller.root.registerSurface(pi);
-		controller.root.attachSession(pi, { ui: { notify: () => {} } });
+		controller.root.attachSession(pi);
 		await commands.get('shift')?.(undefined, {
 			cwd: root,
 			newSession: () => {

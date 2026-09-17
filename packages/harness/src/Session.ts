@@ -7,7 +7,8 @@ import type {
 } from '@earendil-works/pi-coding-agent';
 import type { SystemReminderEvent, TalkableInfoEvent } from '@repo/shared/contract';
 import type { FSWatcher } from 'node:fs';
-import { defineTool } from '@earendil-works/pi-coding-agent';
+import { defineTool, getMarkdownTheme } from '@earendil-works/pi-coding-agent';
+import { Markdown } from '@earendil-works/pi-tui';
 import { SYSTEM_REMINDER_CHANNEL, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
 import { existsSync, renameSync, watch } from 'node:fs';
@@ -180,7 +181,7 @@ export default class Session {
 		if (ctx.hasUI) {
 			// Controller flavor: this instance drives the interactive session.
 			// Re-attaches on every session (a resumed /apps session included).
-			this.kernel.attachSession(this.pi, ctx);
+			this.kernel.attachSession(this.pi);
 			this.kernel.useCwd(ctx.cwd);
 			// The viewed agent is the record matching this session file, if any.
 			const found =
@@ -379,6 +380,18 @@ export default class Session {
 					message: Type.String({ description: 'Message content' }),
 					to: Type.String({ description: 'Target session ID' }),
 				}),
+				/** Show the sent message in the tool result — the human sees
+				 * what was said, once per talk, instead of a replaceable
+				 * status notification. */
+				renderResult: (result, _options, _theme, context) =>
+					new Markdown(
+						context.isError
+							? result.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
+							: `**${context.args.to}**\n\n${context.args.message}`,
+						0,
+						0,
+						getMarkdownTheme(),
+					),
 			}),
 		);
 	}

@@ -11,9 +11,10 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	MessageRenderer,
+	Theme,
 } from '@earendil-works/pi-coding-agent';
 import { getMarkdownTheme } from '@earendil-works/pi-coding-agent';
-import { Markdown } from '@earendil-works/pi-tui';
+import { Markdown, Text, VStack } from '@earendil-works/pi-tui';
 import { LEADER_ID } from '@repo/shared/contract';
 import type { AppMeta, LeaderTalk } from '@/model';
 import type Session from '@/Session';
@@ -128,30 +129,38 @@ export function decodeTalk(content: string): {
 	return JSON.parse(content) as { from: string; message: string; relationship: string };
 }
 
-/** Render a talk message for the controller waterfall. Registered at
+/** Render a talk for the controller waterfall: an accent-colored header line
+ * over the markdown-rendered message — distinct from thinking text. */
+function renderTalkBlock(from: string, rel: string, message: string, theme: Theme): VStack {
+	return new VStack(
+		[
+			new Text(theme.fg('accent', `talk from ${from} (${rel})`)),
+			new Markdown(message, 0, 0, getMarkdownTheme()),
+		],
+		{ gap: 1 },
+	);
+}
+
+/** Render a talk message delivered into the viewed session. Registered at
  * factory time: the TUI renders session history before session_start fires
  * (renderBeforeBind on every switch), so the renderer must exist by then. */
-const renderTalk: MessageRenderer = (message) => {
+const renderTalk: MessageRenderer = (message, _options, theme) => {
 	const { from, message: msg, relationship: rel } = decodeTalk(message.content as string);
-	return new Markdown(`**${from}** (${rel})\n\n${msg}`, 0, 0, getMarkdownTheme());
+	return renderTalkBlock(from, rel, msg, theme);
 };
 
-/** Render a replayed leader talk for the controller waterfall. A CustomEntry
- * is display-only: unlike the talk message above, it never enters LLM context. */
-const renderTalkEntry: EntryRenderer<LeaderTalk> = ({ data }) =>
-	data &&
-	new Markdown(
-		`**${data.from}** (${data.relationship})\n\n${data.message}`,
-		0,
-		0,
-		getMarkdownTheme(),
-	);
+/** Render a leader-talk entry (a background session's talk, or a /talks
+ * replay) for the controller waterfall. A CustomEntry is display-only:
+ * unlike the talk message above, it never enters LLM context. */
+const renderTalkEntry: EntryRenderer<LeaderTalk> = ({ data }, _options, theme) =>
+	data === undefined
+		? undefined
+		: renderTalkBlock(data.from, data.relationship, data.message, theme);
 
 /** Command context surface used by the shift/apps handlers. */
 type CommandContext = Pick<ExtensionCommandContext, 'cwd' | 'ui' | 'newSession' | 'switchSession'>;
 
 export default class Controller {
-	private notify: ((message: string) => void) | undefined;
 	/** The interactive session's API; re-bound on every session_start. */
 	private pi: ExtensionAPI | undefined;
 	/** Talk delivery holds while a session swap is in flight. */
@@ -168,12 +177,8 @@ export default class Controller {
 	};
 
 	/** Attach the human surface to the interactive session (per session_start). */
-	private readonly attachSession = (
-		pi: ExtensionAPI,
-		ctx: { ui: { notify: (message: string) => void } },
-	): void => {
+	private readonly attachSession = (pi: ExtensionAPI): void => {
 		this.pi = pi;
-		this.notify = ctx.ui.notify;
 	};
 
 	/** Route a talk: leader queue, or delivery into the target session. Only
@@ -193,15 +198,13 @@ export default class Controller {
 		// The role of `from` as seen by `to`.
 		const rel = relationship(meta, to, from) ?? 'colleague';
 		if (to === LEADER_ID) {
+			const talk = { at: new Date().toISOString(), from, message, relationship: rel };
 			this.ctx.mutateMeta((m) => {
-				(m.leaderTalks ??= []).push({
-					at: new Date().toISOString(),
-					from,
-					message,
-					relationship: rel,
-				});
+				(m.leaderTalks ??= []).push(talk);
 			});
-			this.notify?.(`\`${from}\`: ${message}`);
+			// The viewed session's own talks surface through the talk tool
+			// Result; background talks surface as a waterfall entry here.
+			if (this.ctx.viewing() !== from) this.pi?.appendEntry('talk', talk);
 			return;
 		}
 		const session = await this.ctx.ensureLive(to);
