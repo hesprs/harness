@@ -2,15 +2,16 @@ import {
 	defineAgent,
 	defineBaseAgent,
 	skill,
+	// ToolApplyPatch,
 	toolBash,
 	toolDelete,
 	toolEdit,
+	toolWrite,
 	toolFetch,
 	toolFind,
 	toolGrep,
 	toolRead,
 	toolSearch,
-	toolWrite,
 } from '@hesprs/harness';
 import { resolve } from 'node:path';
 
@@ -39,6 +40,7 @@ defineAgent({
 		toolWrite,
 		toolEdit,
 		toolDelete,
+		// ToolApplyPatch,
 		toolFind,
 		toolGrep,
 		skill([
@@ -48,7 +50,7 @@ defineAgent({
 			p('./skill/query-docs'),
 		]),
 	],
-	model: 'zai/glm-5.3',
+	model: 'zai/glm-5.3-flash',
 	name: 'worker',
 	prompt: workerPrompt,
 	thinking: 'high',

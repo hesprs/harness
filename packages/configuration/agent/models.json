@@ -1,19 +1,41 @@
 {
 	"providers": {
-		"xai": {
-			"baseUrl": "https://api.a6api.com/v1"
-		},
 		"openai": {
-			"baseUrl": "https://api.a6api.com/v1"
-		},
-		"deepseek": {
-			"baseUrl": "https://api.a6api.com/v1"
+			"baseUrl": "https://api.a6api.com"
 		},
 		"zai": {
-			"baseUrl": "https://api.a6api.com/v1"
+			"baseUrl": "https://api.a6api.com"
 		},
 		"qwen-token-plan-individual": {
-			"baseUrl": "https://api.a6api.com/v1"
+			"baseUrl": "https://api.a6api.com"
+		},
+		"a6api": {
+			"name": "A6api",
+			"baseUrl": "https://api.a6api.com",
+			"api": "openai-responses",
+			"models": [
+				{
+					"id": "DeepSeek-V4-Flash-0731",
+					"name": "DeepSeek V4 Flash 0731",
+					"reasoning": true,
+					"input": ["text"],
+					"cost": {
+						"input": 0.14,
+						"output": 0.28,
+						"cacheRead": 0.0028,
+						"cacheWrite": 0
+					},
+					"contextWindow": 1000000,
+					"maxTokens": 384000,
+					"thinkingLevelMap": {
+						"minimal": null,
+						"low": "low",
+						"medium": null,
+						"high": "high",
+						"max": "max"
+					}
+				}
+			]
 		}
 	}
 }

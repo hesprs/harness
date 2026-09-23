@@ -6,7 +6,7 @@ import { tmpRoot } from './utils';
 
 test('exact match replaces', () => {
 	const result = applyEdits('a\nb\nc\n', [{ newText: 'B', oldText: 'b' }]);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('a\nB\nc\n');
 });
 
@@ -14,31 +14,31 @@ test('indentation and whitespace drift still matches real text', () => {
 	const result = applyEdits('\tfoo\n\t\tbar   baz\n', [
 		{ newText: 'X', oldText: 'foo\n  bar\tbaz' },
 	]);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('X\n');
 });
 
 test('blank-line differences are tolerated on both sides', () => {
 	const result = applyEdits('a\n\n\nb\n', [{ newText: 'c', oldText: 'a\n\nb' }]);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('c\n');
 });
 
-test('ambiguous oldText fails with line numbers', () => {
+test('ambiguous oldText is skipped with line numbers', () => {
 	const result = applyEdits('x\nx\n', [{ newText: 'y', oldText: 'x' }]);
-	expect(result.failure).toContain('matches at lines 1, 2');
-	expect(result.content).toBe('x\nx\n'); // Nothing written on failure
+	expect(result.failures.join('\n')).toContain('matches at lines 1, 2');
+	expect(result.content).toBe('x\nx\n'); // Nothing to apply
 });
 
 test('replaceAll replaces every occurrence', () => {
 	const result = applyEdits('x\nm\nx\n', [{ newText: 'y', oldText: 'x' }], true);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('y\nm\ny\n');
 });
 
 test('replaceAll replaces every occurrence of a fuzzy match', () => {
 	const result = applyEdits('\tx\n\ty\nm\n\tx\n\ty\n', [{ newText: 'z', oldText: 'x\ny' }], true);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('z\nm\nz\n');
 });
 
@@ -55,13 +55,13 @@ test('a partial-line oldText with inner whitespace drift matches its whole line'
 	const result = applyEdits('const x = 1; // note\n', [
 		{ newText: 'y', oldText: 'const  x = 1;' },
 	]);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('y\n');
 });
 
-test('a whitespace-only oldText fails explicitly', () => {
+test('a whitespace-only oldText is skipped explicitly', () => {
 	const result = applyEdits('a\n', [{ newText: 'y', oldText: ' \n\t ' }]);
-	expect(result.failure).toContain('whitespace');
+	expect(result.failures.join('\n')).toContain('whitespace');
 });
 
 test('multiple edits match the original content, not incrementally', () => {
@@ -69,38 +69,41 @@ test('multiple edits match the original content, not incrementally', () => {
 		{ newText: 'B', oldText: 'b' },
 		{ newText: 'C', oldText: 'c' },
 	]);
-	expect(result.failure).toBeUndefined();
+	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('a\nB\nC\n');
 });
 
-test('overlapping edits fail without writing', () => {
+test('overlapping edits keep the first and skip the clash', () => {
 	const result = applyEdits('a\nb\nc\n', [
 		{ newText: 'X', oldText: 'a\nb' },
 		{ newText: 'Y', oldText: 'b\nc' },
 	]);
-	expect(result.failure).toContain('overlap');
-	expect(result.content).toBe('a\nb\nc\n');
+	expect(result.failures.join('\n')).toContain('overlap');
+	expect(result.applied).toEqual([0]);
+	expect(result.content).toBe('X\nc\n');
 });
 
-test('an edit identical to its match fails as a no-op', () => {
+test('an edit identical to its match is skipped as a no-op', () => {
 	const result = applyEdits('a\n', [{ newText: 'a', oldText: 'a' }]);
-	expect(result.failure).toContain('no change');
+	expect(result.failures.join('\n')).toContain('no change');
 });
 
 test('no match reports the tried passes', () => {
 	const result = applyEdits('a\n', [{ newText: 'z', oldText: 'missing' }]);
-	expect(result.failure).toContain('not found');
-	expect(result.failure).toContain('agnostic');
+	expect(result.failures.join('\n')).toContain('not found');
+	expect(result.failures.join('\n')).toContain('agnostic');
 });
 
-test('failures name the offending edit index', () => {
+test('a bad edit is skipped while the rest still apply', () => {
 	const result = applyEdits('a\nb\n', [
 		{ newText: 'B', oldText: 'b' },
 		{ newText: 'z', oldText: 'missing' },
 	]);
-	expect(result.failure).toContain('edits[1]');
-	expect(result.failure).toContain('not found');
-	expect(result.content).toBe('a\nb\n');
+	expect(result.failures).toEqual([
+		'edits[1]: oldText not found: no exact or whitespace/escape-agnostic match',
+	]);
+	expect(result.applied).toEqual([0]);
+	expect(result.content).toBe('a\nB\n');
 });
 
 test('editFile writes the change and round-trips CRLF endings', async () => {
@@ -108,9 +111,7 @@ test('editFile writes the change and round-trips CRLF endings', async () => {
 	try {
 		const file = join(root, 'crlf.txt');
 		await Bun.write(file, 'a\r\nb\r\nc\r\n');
-		expect(
-			(await editFile(file, [{ newText: 'a\nB', oldText: 'a\nb' }])).failure,
-		).toBeUndefined();
+		expect((await editFile(file, [{ newText: 'a\nB', oldText: 'a\nb' }])).failures).toEqual([]);
 		expect(await Bun.file(file).text()).toBe('a\r\nB\r\nc\r\n');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
@@ -122,7 +123,7 @@ test('editFile preserves a BOM and skips it for matching', async () => {
 	try {
 		const file = join(root, 'bom.txt');
 		await Bun.write(file, '\uFEFFa\nb\n');
-		expect((await editFile(file, [{ newText: 'B', oldText: 'b' }])).failure).toBeUndefined();
+		expect((await editFile(file, [{ newText: 'B', oldText: 'b' }])).failures).toEqual([]);
 		// Reading with .text() would strip the BOM — decode with it kept.
 		const written = new TextDecoder('utf-8', { ignoreBOM: true }).decode(
 			await Bun.file(file).bytes(),
@@ -133,14 +134,30 @@ test('editFile preserves a BOM and skips it for matching', async () => {
 	}
 });
 
-test('editFile leaves the file untouched on failure', async () => {
+test('editFile writes the matching edits and skips the rest', async () => {
+	const root = tmpRoot();
+	try {
+		const file = join(root, 'partial.txt');
+		await Bun.write(file, 'a\nb\nc\n');
+		const outcome = await editFile(file, [
+			{ newText: 'A', oldText: 'a' },
+			{ newText: 'z', oldText: 'missing' },
+		]);
+		expect(outcome.applied).toEqual([0]);
+		expect(outcome.failures.join('\n')).toContain('edits[1]');
+		expect(await Bun.file(file).text()).toBe('A\nb\nc\n');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('editFile leaves the file untouched when no edit matches', async () => {
 	const root = tmpRoot();
 	try {
 		const file = join(root, 'keep.txt');
 		await Bun.write(file, 'x\nx\n');
-		expect((await editFile(file, [{ newText: 'y', oldText: 'x' }])).failure).toContain(
-			'ambiguous',
-		);
+		const outcome = await editFile(file, [{ newText: 'y', oldText: 'x' }]);
+		expect(outcome.failures.join('\n')).toContain('ambiguous');
 		expect(await Bun.file(file).text()).toBe('x\nx\n');
 	} finally {
 		rmSync(root, { force: true, recursive: true });

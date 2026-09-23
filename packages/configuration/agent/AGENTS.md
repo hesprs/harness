@@ -11,10 +11,8 @@ Meet ambiguities, talk; see contradictions, talk; have better methods, talk; oth
 - System is NixOS.
 - GitHub CLI, Bun, Node.js, Python3 are installed.
 - You are in a multi-agent team. If you see a file has been changed unexpectedly, the formatter or other agents have touched it.
-- Your personal note reminds you every turn. Record what you have done and plan to do, keep it very concise, compact it if it grows too long.
 - When fetching GitHub content, prefer `raw.githubusercontent.com` fetch.
 - NEVER hard-wrap markdown paragraphs.
-- ALWAYS plan before execution, write clear and step-by-step TODO list only to your personal note, then move on according to that.
 
 ### Trust Boundary
 
@@ -27,7 +25,7 @@ Meet ambiguities, talk; see contradictions, talk; have better methods, talk; oth
 
 - Read multiple files
 - Find files, search symbols, and run bash
-- Run bash and write personal note
+- Run bash and write file
 
 ### Simplicity First
 

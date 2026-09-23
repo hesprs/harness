@@ -8,10 +8,12 @@ import { defineTool } from '@earendil-works/pi-coding-agent';
  * and a fuzzy match always replaces whole lines of real file
  * text — never the query.
  *
- * An ambiguous match fails with 1-indexed line numbers instead of guessing;
- * the top-level `replaceAll` opts into every occurrence instead. All edits
- * in one call match the original content (not incrementally) and apply
- * bottom-up. Failures name the offending `edits[i]` index.
+ * An ambiguous match is reported with 1-indexed line numbers instead of
+ * guessing; the top-level `replaceAll` opts into every occurrence instead.
+ * All edits in one call match the original content (not incrementally) and
+ * apply bottom-up. A bad edit never sinks the others: it is skipped and
+ * named in `failures`, while the matchable ones still land and are named
+ * in `applied`.
  */
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
@@ -132,64 +134,81 @@ export function diffSpans(before: string, spans: Array<Span>, context = 4): stri
 }
 
 /** Apply every edit to `content` (LF-normalized): match all against the
- * original, refuse overlaps, write bottom-up. Nothing changes on failure. */
+ * original, write bottom-up. Unmatchable or clashing edits are skipped and
+ * reported; whatever still matches is applied. */
 export function applyEdits(
 	content: string,
 	edits: Array<EditInput>,
 	replaceAll = false,
 ): {
+	applied: Array<number>;
 	content: string;
 	diff?: string;
-	failure?: string;
+	failures: Array<string>;
 } {
 	const spans: Array<Span> = [];
+	const problems: Array<{ index: number; message: string }> = [];
 	for (let i = 0; i < edits.length; i++) {
 		const edit = edits[i] as EditInput;
 		const resolved = resolveSpans(content, edit.oldText);
-		if (resolved.failure) return { content, failure: `edits[${i}]: ${resolved.failure}` };
+		if (resolved.failure) {
+			problems.push({ index: i, message: `edits[${i}]: ${resolved.failure}` });
+			continue;
+		}
 		const found = resolved.spans ?? [];
-		if (found.length > 1 && !replaceAll)
-			return {
-				content,
-				failure: `edits[${i}]: oldText is ambiguous: matches at lines ${found
+		if (found.length > 1 && !replaceAll) {
+			problems.push({
+				index: i,
+				message: `edits[${i}]: oldText is ambiguous: matches at lines ${found
 					.map((span) => content.slice(0, span.start).split('\n').length)
 					.join(', ')} — add surrounding context or set replaceAll`,
-			};
-		for (const span of found) {
-			if (content.slice(span.start, span.end) === edit.newText)
-				return {
-					content,
-					failure: `edits[${i}]: an edit replaces the matched text with itself — no change`,
-				};
-			spans.push({ edit: i, end: span.end, replacement: edit.newText, start: span.start });
+			});
+			continue;
 		}
+		if (found.some((span) => content.slice(span.start, span.end) === edit.newText)) {
+			problems.push({
+				index: i,
+				message: `edits[${i}]: an edit replaces the matched text with itself — no change`,
+			});
+			continue;
+		}
+		for (const span of found)
+			spans.push({ edit: i, end: span.end, replacement: edit.newText, start: span.start });
 	}
 	spans.sort((a, b) => a.start - b.start);
-	for (let i = 1; i < spans.length; i++) {
-		const prev = spans[i - 1];
-		const curr = spans[i];
-		if (prev && curr && curr.start < prev.end)
-			return {
-				content,
-				failure: `edits[${prev.edit}] and edits[${curr.edit}] overlap — merge them into one edit`,
-			};
+	const kept: Array<Span> = [];
+	for (const span of spans) {
+		const prev = kept.at(-1);
+		if (prev && span.start < prev.end) {
+			problems.push({
+				index: span.edit,
+				message: `edits[${span.edit}] overlaps edits[${prev.edit}] — merge them into one edit`,
+			});
+			continue;
+		}
+		kept.push(span);
 	}
 	let result = content;
-	for (const span of spans.toReversed())
+	for (const span of kept.toReversed())
 		result = result.slice(0, span.start) + span.replacement + result.slice(span.end);
 
-	return { content: result, diff: diffSpans(content, spans) };
+	return {
+		applied: [...new Set(kept.map((span) => span.edit))].sort((a, b) => a - b),
+		content: result,
+		...(kept.length ? { diff: diffSpans(content, kept) } : {}),
+		failures: problems.toSorted((a, b) => a.index - b.index).map((problem) => problem.message),
+	};
 }
 
 /** Edit a file in place. The model never includes an invisible BOM in
  * oldText, and CRLF line endings round-trip: matching happens on
- * LF-normalized content. Returns the failure message, if any, and the
- * renderable diff on success. */
+ * LF-normalized content. Returns the applied edit indices, the renderable
+ * diff, and the per-edit failures of whatever got skipped. */
 export async function editFile(
 	path: string,
 	edits: Array<EditInput>,
 	replaceAll = false,
-): Promise<{ diff?: string; failure?: string }> {
+): Promise<{ applied: Array<number>; diff?: string; failures: Array<string> }> {
 	// Bun.file().text() strips a leading BOM — decode with it kept.
 	const raw = new TextDecoder('utf-8', { ignoreBOM: true }).decode(await Bun.file(path).bytes());
 	const bom = raw.startsWith('\uFEFF') ? '\uFEFF' : '';
@@ -197,10 +216,11 @@ export async function editFile(
 	const crlf = content.includes('\r\n');
 	const normalized = crlf ? content.replaceAll('\r\n', '\n') : content;
 	const applied = applyEdits(normalized, edits, replaceAll);
-	if (applied.failure) return { failure: applied.failure };
-	const finalText = crlf ? applied.content.replaceAll('\n', '\r\n') : applied.content;
-	await Bun.write(path, bom + finalText);
-	return { diff: applied.diff };
+	if (applied.applied.length) {
+		const finalText = crlf ? applied.content.replaceAll('\n', '\r\n') : applied.content;
+		await Bun.write(path, bom + finalText);
+	}
+	return { applied: applied.applied, diff: applied.diff, failures: applied.failures };
 }
 
 const editItemSchema = Type.Object({
@@ -225,7 +245,21 @@ export const toolEdit: Extension = (pi) => {
 						params.edits,
 						params.replaceAll === true,
 					);
-					if (outcome.failure) return text(`${outcome.failure} (${params.path})`, true);
+					if (outcome.failures.length) {
+						const head = outcome.applied.length
+							? `applied ${outcome.applied.length}/${params.edits.length} edit(s) in ${params.path} (edits ${outcome.applied.join(', ')} are written to disk — do not redo them); skipped:`
+							: `no edits applied in ${params.path}:`;
+						return {
+							content: [
+								{
+									text: `${head}\n${outcome.failures.map((f) => `- ${f}`).join('\n')}`,
+									type: 'text' as const,
+								},
+							],
+							details: { diff: outcome.diff },
+							isError: true,
+						};
+					}
 					return {
 						content: [
 							{
@@ -244,14 +278,14 @@ export const toolEdit: Extension = (pi) => {
 			parameters: Type.Object({
 				edits: Type.Array(editItemSchema, {
 					description:
-						'One or more targeted replacements, matched against the original file, not incrementally. Do not include overlapping edits.',
+						'One or more targeted replacements, matched against the original file, not incrementally. Unmatchable edits are skipped and reported while the rest apply.',
 				}),
 				path: Type.String({
 					description: 'Path to the file to edit (relative or absolute).',
 				}),
 				replaceAll: Type.Optional(
 					Type.Boolean({
-						description: 'Replace every occurrence instead of failing on ambiguity.',
+						description: 'Replace every occurrence instead of skipping as ambiguous.',
 					}),
 				),
 			}),

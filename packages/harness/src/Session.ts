@@ -18,7 +18,7 @@ import type { LiveSession } from '@/Sessions';
 import { encodeTalk, formatTalkNotice } from '@/Controller';
 import { appSessionsRoot } from '@/model';
 
-const TALK_DESCRIPTION = `Send an message to another agent. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop without further tool calls. Any talk to you will wake you up. MUST communicate with other agents through this, plain output is meaningless and NOT delivered to anyone.`;
+const TALK_DESCRIPTION = `Send an message to another agent. Other agents communicate to you using this tool, you MUST communicate using this tool also; plain output is meaningless and NOT delivered to anyone. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop after talking without further tool calls; any incoming talks will wake you up when you have stopped.`;
 
 const WORKING_STYLE = `You are an AI agent working with autonomy. You complete your tasks with high quality, and communicate with other agents smartly.`;
 
