@@ -289,6 +289,8 @@ export const toolEdit: Extension = (pi) => {
 					}),
 				),
 			}),
+			// Pi's built-in edit renderer draws its own shell (a padded box). Without this, Pi wraps the renderer's box in the generic tool box: box in box.
+			renderShell: 'self',
 		}),
 	);
 };

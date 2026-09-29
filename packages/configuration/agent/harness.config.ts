@@ -1,8 +1,9 @@
+// oxlint-disable capitalized-comments
 import {
 	defineAgent,
 	defineBaseAgent,
 	skill,
-	// ToolApplyPatch,
+	// toolApplyPatch,
 	toolBash,
 	toolDelete,
 	toolEdit,
@@ -40,7 +41,7 @@ defineAgent({
 		toolWrite,
 		toolEdit,
 		toolDelete,
-		// ToolApplyPatch,
+		// toolApplyPatch,
 		toolFind,
 		toolGrep,
 		skill([
@@ -50,7 +51,6 @@ defineAgent({
 			p('./skill/query-docs'),
 		]),
 	],
-	model: 'zai/glm-5.3-flash',
 	name: 'worker',
 	prompt: workerPrompt,
 	thinking: 'high',
