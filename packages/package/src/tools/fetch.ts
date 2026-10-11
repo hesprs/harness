@@ -1,11 +1,6 @@
 import type { Extension } from '@repo/shared/contract';
-/**
- * Fetch tool: single-URL GET. Output format `extract` (HTML and PDF →
- * markdown; the default for HTML and PDF responses) or `raw` (the default
- * for everything else — an explicit `extract` on other types is ignored).
- * Binary images always become base64 image blocks; optional query params
- * and save to a temp file.
- */
+import type { Static } from 'typebox';
+/** Fetch tool: single-URL GET. Output format `extract` (HTML and PDF → markdown; the default for HTML and PDF responses) or `raw` (the default for everything else — an explicit `extract` on other types is ignored). Binary images always become base64 image blocks; optional query params and save to a temp file. */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { Defuddle } from 'defuddle/node';
@@ -16,8 +11,7 @@ import { pdfToMarkdown } from './read.ts';
 
 export type FetchOptions = {
 	url: string;
-	/** Output format. Defaults to `extract` for HTML and PDF responses, `raw`
-	 * for everything else; an explicit `extract` on other types is ignored. */
+	/** Output format. Defaults to `extract` for HTML and PDF responses, `raw` for everything else; an explicit `extract` on other types is ignored. */
 	format?: 'extract' | 'raw';
 	params?: Record<string, string>;
 	/** Save the output (extracted markdown or raw bytes) to a temp file and return its path. */
@@ -97,14 +91,7 @@ export type FetchResult = {
 	isError?: boolean;
 };
 
-/** Fetch one URL. `format` defaults to `extract` for HTML and PDF responses
- * and `raw` otherwise; an explicit `extract` on any other type is ignored
- * (raw). `extract` output is markdown (HTML and PDF only); `raw` returns the
- * response body as-is. Binary images (bmp/gif/jpeg/png/webp) always become
- * base64 image attachments regardless of format. `saveToTemp` writes the
- * output to a temp file and returns its path — `.md` for extracted output,
- * otherwise the raw bytes with an extension derived from the content type
- * (URL path and magic bytes as fallbacks). */
+/** Fetch one URL. `format` defaults to `extract` for HTML and PDF responses and `raw` otherwise; an explicit `extract` on any other type is ignored (raw). `extract` output is markdown (HTML and PDF only); `raw` returns the response body as-is. Binary images (bmp/gif/jpeg/png/webp) always become base64 image attachments regardless of format. `saveToTemp` writes the output to a temp file and returns its path — `.md` for extracted output, otherwise the raw bytes with an extension derived from the content type (URL path and magic bytes as fallbacks). */
 export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	const url = new URL(opts.url);
 	for (const [key, value] of Object.entries(opts.params ?? {})) url.searchParams.set(key, value);
@@ -121,7 +108,7 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 		if (opts.saveToTemp)
 			return { content: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
 		return {
-			content: `Fetched image [${mime}]`,
+			content: '',
 			image: { data: Buffer.from(bytes).toString('base64'), mimeType: mime },
 		};
 	}
@@ -145,6 +132,14 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	return { content: await response.text() };
 }
 
+const fetchOutputSchema = Type.Union([
+	Type.Object({ path: Type.String({ description: 'Temp file path (when saveToTemp)' }) }),
+	Type.Object({ content: Type.String({ description: 'Extracted markdown or raw text' }) }),
+	Type.Object({ image: Type.Object({ data: Type.String(), mimeType: Type.String() }) }),
+]);
+
+type FetchOutput = Static<typeof fetchOutputSchema>;
+
 // Extension that registers the `fetch` tool.
 export const toolFetch: Extension = (pi) => {
 	const formats = Type.Union([Type.Literal('extract'), Type.Literal('raw')], {
@@ -162,10 +157,15 @@ export const toolFetch: Extension = (pi) => {
 				try {
 					const out = await fetchUrl(params);
 					if (signal?.aborted) return text('aborted', true);
+					const structuredContent: FetchOutput = out.image
+						? { image: out.image }
+						: params.saveToTemp
+							? { path: out.content }
+							: { content: out.content };
 					if (out.image)
 						return {
 							content: [
-								{ text: out.content, type: 'text' } as const,
+								{ text: '', type: 'text' } as const,
 								{
 									data: out.image.data,
 									mimeType: out.image.mimeType,
@@ -173,14 +173,16 @@ export const toolFetch: Extension = (pi) => {
 								} as const,
 							],
 							details: undefined,
+							structuredContent,
 						};
-					return text(out.content);
+					return { ...text(out.content), structuredContent };
 				} catch (error) {
 					return text(errText(error), true);
 				}
 			},
 			label: 'Fetch',
 			name: 'fetch',
+			outputSchema: fetchOutputSchema,
 			parameters: Type.Object({
 				format: Type.Optional(formats),
 				params: Type.Optional(stringRecord),

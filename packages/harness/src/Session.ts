@@ -1,15 +1,15 @@
 import type { Kernel } from '@';
 import type {
-	ContextEvent,
+	BeforeAgentStartEvent,
 	ExtensionAPI,
 	ExtensionContext,
 	InputEvent,
 } from '@earendil-works/pi-coding-agent';
-import type { SystemReminderEvent, TalkableInfoEvent } from '@repo/shared/contract';
+import type { TalkableInfoEvent } from '@repo/shared/contract';
 import type { FSWatcher } from 'node:fs';
 import { defineTool, getMarkdownTheme } from '@earendil-works/pi-coding-agent';
 import { Markdown } from '@earendil-works/pi-tui';
-import { SYSTEM_REMINDER_CHANNEL, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
+import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
 import { existsSync, renameSync, watch } from 'node:fs';
 import { join } from 'node:path';
@@ -22,18 +22,13 @@ const TALK_DESCRIPTION = `Send an message to another agent. Other agents communi
 
 const WORKING_STYLE = `You are an AI agent working with autonomy. You complete your tasks with high quality, and communicate with other agents smartly.`;
 
-/** Heading of every per-LLM-call reminder message. */
-const REMINDER_TAG = 'system-reminder';
-
 const fmt = new Intl.DateTimeFormat('en-US', {
 	day: 'numeric',
 	month: 'short',
 	year: 'numeric',
 });
 
-/** Move the session's record file into the app session folder. pi allocated
- * the file in the default sessions dir; entries may already be flushed, so
- * rename first, then re-point the manager (it loads the history back). */
+/** Move the session's record file into the app session folder. pi allocated the file in the default sessions dir; entries may already be flushed, so rename first, then re-point the manager (it loads the history back). */
 function relocateRecord(
 	sessionManager: {
 		getSessionFile: () => string | undefined;
@@ -47,100 +42,7 @@ function relocateRecord(
 	sessionManager.setSessionFile(target);
 }
 
-/**
- * Internal reminder contributors (the topic file and the talkable-agent
- * roster): two subscriptions on the system-reminder event, each with its own
- * timing (a re-append interval) and content dedup. The topic file is watched
- * — its content is cached whenever the watcher fires — and the manifest is
- * built from the in-memory roster on demand. Lifecycle follows the owning
- * session.
- */
-class InternalReminders {
-	/** Minimum time between two appends of one contributor. */
-	private static readonly INTERVAL_MS = 120_000;
-	private readonly at: Record<Which, number | undefined> = {
-		talkables: undefined,
-		topic: undefined,
-	};
-	private readonly last: Record<Which, string | undefined> = {
-		talkables: undefined,
-		topic: undefined,
-	};
-	private watcher: FSWatcher | undefined;
-	private topicContent = '';
-
-	constructor(
-		private readonly pi: ExtensionAPI,
-		private readonly kernel: Kernel,
-		private readonly sessionId: () => string | undefined,
-	) {
-		this.pi.events.on(SYSTEM_REMINDER_CHANNEL, (data) => {
-			this.append(data, 'topic');
-		});
-		this.pi.events.on(SYSTEM_REMINDER_CHANNEL, (data) => {
-			this.append(data, 'talkables');
-		});
-	}
-
-	/** Point the topic contributor at a file; re-binding swaps the watcher. */
-	async setTopic(topic: string | undefined): Promise<void> {
-		this.watcher?.close();
-		this.watcher = undefined;
-		this.topicContent = '';
-		if (topic === undefined) return;
-		await this.readTopic(topic);
-		if (!existsSync(topic)) return;
-		this.watcher = watch(topic, { persistent: false }, () => {
-			void this.readTopic(topic);
-		});
-	}
-
-	/** Read the topic file into the cache; a failed read empties it. */
-	private async readTopic(topic: string): Promise<void> {
-		try {
-			this.topicContent = await Bun.file(topic).text();
-		} catch {
-			this.topicContent = '';
-		}
-	}
-
-	/** One contributor's current block. */
-	private block(which: Which): string {
-		if (which === 'topic')
-			return this.topicContent.trim() === '' ? '' : `<topic>\n${this.topicContent}\n</topic>`;
-		const sessionId = this.sessionId();
-		if (sessionId === undefined) return '';
-		const entries = this.kernel.talkableFor(sessionId);
-		return entries.length === 0
-			? ''
-			: `<talkable-agents>\n${entries.join('\n')}\n</talkable-agents>`;
-	}
-
-	/** Append one block, gated by this contributor's interval and dedup. */
-	private append(data: unknown, which: Which): void {
-		const now = Date.now();
-		const at = this.at[which];
-		if (at !== undefined && now - at < InternalReminders.INTERVAL_MS) return;
-		const block = this.block(which);
-		if (block === '') return;
-		if (block === this.last[which]) return;
-		this.at[which] = now;
-		this.last[which] = block;
-		const payload = data as SystemReminderEvent;
-		payload.text = payload.text ? `${payload.text}\n\n${block}` : block;
-	}
-}
-
-type Which = 'talkables' | 'topic';
-
-/**
- * One instance per agent session (the interactive one that runs the viewed
- * agent natively, and every background SDK session). Owns everything
- * session-local: identity binding, the agent definition application, prompt
- * construction, the talk tool, talk delivery into this session, and the
- * talkable-info event. Background live sessions attach here so the viewed
- * and background cases keep no abstraction difference.
- */
+/** One instance per agent session (the interactive one that runs the viewed agent natively, and every background SDK session). Owns everything session-local: identity binding, the agent definition application, prompt construction, the talk tool, talk delivery into this session, and the talkable-info event. Background live sessions attach here so the viewed and background cases keep no abstraction difference. */
 export default class Session {
 	/** Agent name ('' = no configs: the session stays Pi-native). */
 	agent = '';
@@ -153,8 +55,9 @@ export default class Session {
 	private registered = false;
 	/** Agent whose definition is currently applied (adoption re-fires skip). */
 	private appliedAgent: string | undefined;
-	/** Internal reminder contributors; lifecycle follows this session. */
-	private readonly reminders: InternalReminders;
+	/** Topic file watcher; caches content for the prompt section. */
+	private topicWatcher: FSWatcher | undefined;
+	private topicContent = '';
 	/** Background SDK session handle; the viewed session runs natively instead. */
 	live: LiveSession | undefined;
 
@@ -162,14 +65,11 @@ export default class Session {
 		private readonly pi: ExtensionAPI,
 		private readonly kernel: Kernel,
 	) {
-		// Factory time: pi re-runs this for every session's runner, before the
-		// TUI renders history on a switch — the surface must exist by then.
+		// Factory time: pi re-runs this for every session's runner, before the TUI renders history on a switch — the surface must exist by then.
 		this.kernel.registerSurface(pi);
 		this.registerTalkTool();
-		this.reminders = new InternalReminders(pi, kernel, () => this.sessionId);
 		pi.on('session_start', (_, ctx) => this.start(ctx));
-		pi.on('before_agent_start', (_, ctx) => this.beginTurn(ctx));
-		pi.on('context', (event) => this.remind(event));
+		pi.on('before_agent_start', (event, ctx) => this.beginTurn(event, ctx));
 		pi.on('input', (event, ctx) => this.leaderInput(event, ctx));
 	}
 
@@ -179,8 +79,7 @@ export default class Session {
 		this.piFile = ctx.sessionManager.getSessionFile();
 		const piSessionId = ctx.sessionManager.getSessionId();
 		if (ctx.hasUI) {
-			// Controller flavor: this instance drives the interactive session.
-			// Re-attaches on every session (a resumed /apps session included).
+			// Controller flavor: this instance drives the interactive session. Re-attaches on every session (a resumed /apps session included).
 			this.kernel.attachSession(this.pi);
 			this.kernel.useCwd(ctx.cwd);
 			// The viewed agent is the record matching this session file, if any.
@@ -193,8 +92,7 @@ export default class Session {
 							appSessionsRoot(ctx.cwd),
 						);
 			if (found === undefined) {
-				// Fresh session file: arm the pending (or default) agent provisionally;
-				// Registered on the first user message.
+				// Fresh session file: arm the pending (or default) agent provisionally; Registered on the first user message.
 				if (this.kernel.pendingAgent() === undefined)
 					this.kernel.armPending((await this.kernel.defaultAgent()) ?? '');
 				this.agent = this.kernel.pendingAgent() ?? '';
@@ -204,8 +102,7 @@ export default class Session {
 					// A new app session begins here if none is active.
 					if (this.kernel.appFolder() === undefined)
 						await this.kernel.beginAppSession(appSessionsRoot(ctx.cwd));
-					// Locate the fresh session's record inside the app session before
-					// Its first turn; pi allocated the file in the default sessions dir.
+					// Locate the fresh session's record inside the app session before Its first turn; pi allocated the file in the default sessions dir.
 					const record = this.kernel.provisionPending(this.agent);
 					relocateRecord(
 						ctx.sessionManager as typeof ctx.sessionManager & {
@@ -221,7 +118,7 @@ export default class Session {
 				this.registered = true;
 				this.sessionId = found.sessionId;
 				this.topic = found.topic;
-				await this.reminders.setTopic(found.topic);
+				await this.setTopic(found.topic);
 				this.kernel.bindSession(found.sessionId, this);
 			}
 		} else {
@@ -233,12 +130,10 @@ export default class Session {
 			this.registered = true;
 			this.sessionId = binding.sessionId;
 			this.topic = binding.topic;
-			await this.reminders.setTopic(binding.topic);
+			await this.setTopic(binding.topic);
 			this.kernel.bindSession(binding.sessionId, this);
 		}
-		// Re-apply on agent change: the controller's session instance is shared
-		// Across shifts, so the previous agent's tool activations must be replaced.
-		// Same-agent re-fires (e.g. adoption) are no-ops.
+		// Re-apply on agent change: the controller's session instance is shared Across shifts, so the previous agent's tool activations must be replaced. Same-agent re-fires (e.g. adoption) are no-ops.
 		if (this.agent !== '' && this.appliedAgent !== this.agent) {
 			await this.apply(ctx);
 			this.appliedAgent = this.agent;
@@ -272,7 +167,7 @@ export default class Session {
 		this.registered = true;
 		this.sessionId = binding.sessionId;
 		this.topic = binding.topic;
-		await this.reminders.setTopic(binding.topic);
+		await this.setTopic(binding.topic);
 		this.kernel.bindSession(binding.sessionId, this);
 		this.footer(ctx);
 	}
@@ -287,15 +182,27 @@ export default class Session {
 		ctx.ui.setStatus('harness', label);
 	}
 
-	/** The system prompt: identity, instructions, skills. */
-	private async beginTurn(ctx: ExtensionContext): Promise<{ systemPrompt: string } | undefined> {
+	/** The system prompt: identity and instructions as preamble; topic and talkables as persisted, diffed sections. */
+	private async beginTurn(
+		event: BeforeAgentStartEvent,
+		ctx: ExtensionContext,
+	): Promise<undefined> {
 		if (this.agent === '') return undefined; // Pi-native turn
 		await this.ensureRegistered(ctx);
 		if (!this.registered) return undefined; // Not persisted: Pi-native turn
-		return { systemPrompt: this.buildPrompt(ctx.getSystemPrompt()) };
+		const sections = event.systemPromptOptions.sections;
+		const topic = this.topicContent.trim();
+		if (topic) sections.topic = topic;
+		else delete sections.topic;
+		if (this.sessionId !== undefined) {
+			const entries = this.kernel.talkableFor(this.sessionId);
+			if (entries.length > 0) sections.talkables = entries.join('\n');
+			else delete sections.talkables;
+		}
+		event.systemPromptOptions.customPrompt = this.buildPrompt();
 	}
 
-	private buildPrompt(piPrompt: string): string {
+	private buildPrompt(): string {
 		const identity = [
 			`Application session: \`${this.appFolder ?? ''}\``,
 			`Your ID: \`${this.sessionId ?? ''}\``,
@@ -305,43 +212,31 @@ export default class Session {
 		const instructions = [WORKING_STYLE, ...(this.kernel.get(this.agent)?.prompts ?? [])].join(
 			'\n\n',
 		);
-		// Lift the `<available_skills>` block out of pi's system prompt.
-		const skills = /<available_skills>[\s\S]*?<\/available_skills>/u.exec(piPrompt)?.[0];
 		return [
 			`<meta>\n${identity}\n</meta>`,
 			`<instructions>\n${instructions}\n</instructions>`,
-			...(skills === undefined
-				? []
-				: [`<skills>\nUse \`read\` tool to use skills.\n${skills}\n</skills>`]),
 		].join('\n\n');
 	}
 
-	/** Reminder injection: a transient user message before every LLM call.
-	 * The content is assembled entirely through the system-reminder event —
-	 * the session fires it with an empty payload, internal contributors and
-	 * extensions append, non-empty content is wrapped and injected. Never
-	 * persisted. */
-	private remind(event: ContextEvent): { messages?: ContextEvent['messages'] } {
-		if (this.agent === '' || !this.registered) return {}; // Pi-native turn
-		const payload: SystemReminderEvent = { text: '' };
-		this.pi.events.emit(SYSTEM_REMINDER_CHANNEL, payload);
-		const content = payload.text.trim();
-		if (!content) return {};
-		return {
-			messages: [
-				...event.messages,
-				{
-					content: [
-						{
-							text: `<${REMINDER_TAG}>\n${content}\n</${REMINDER_TAG}>`,
-							type: 'text' as const,
-						},
-					],
-					role: 'user' as const,
-					timestamp: Date.now(),
-				},
-			],
-		};
+	/** Point the topic watcher at a file; re-binding swaps the watcher. */
+	private async setTopic(topic: string | undefined): Promise<void> {
+		this.topicWatcher?.close();
+		this.topicWatcher = undefined;
+		this.topicContent = '';
+		if (topic === undefined) return;
+		await this.readTopic(topic);
+		if (!existsSync(topic)) return;
+		this.topicWatcher = watch(topic, { persistent: false }, () => {
+			void this.readTopic(topic);
+		});
+	}
+
+	private async readTopic(topic: string): Promise<void> {
+		try {
+			this.topicContent = await Bun.file(topic).text();
+		} catch {
+			this.topicContent = '';
+		}
 	}
 
 	/** Human input = commander-00001 talking to this session. */
@@ -380,9 +275,7 @@ export default class Session {
 					message: Type.String({ description: 'Message content' }),
 					to: Type.String({ description: 'Target session ID' }),
 				}),
-				/** Show the sent message in the tool result — the human sees
-				 * what was said, once per talk, instead of a replaceable
-				 * status notification. */
+				/** Show the sent message in the tool result — the human sees what was said, once per talk, instead of a replaceable status notification. */
 				renderResult: (result, _options, _theme, context) =>
 					new Markdown(
 						context.isError
@@ -396,9 +289,7 @@ export default class Session {
 		);
 	}
 
-	/** Deliver a talk into this session: background sessions through their
-	 * live handle (steered mid-generation, prompted when idle), the viewed
-	 * session through the controller's own conversation. */
+	/** Deliver a talk into this session: background sessions through their live handle (steered mid-generation, prompted when idle), the viewed session through the controller's own conversation. */
 	deliver(from: string, rel: string, message: string): void {
 		if (this.live !== undefined) {
 			const notice = formatTalkNotice(from, rel, message);
@@ -413,8 +304,7 @@ export default class Session {
 		});
 	}
 
-	/** The session's talkable manifest content, dispatched on this session's
-	 * own event bus; handlers must mutate synchronously. */
+	/** The session's talkable manifest content, dispatched on this session's own event bus; handlers must mutate synchronously. */
 	info(base: string): string {
 		const event: TalkableInfoEvent = { text: base };
 		if (this.sessionId !== undefined)

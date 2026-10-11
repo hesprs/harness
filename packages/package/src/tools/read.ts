@@ -1,11 +1,6 @@
 import type { Extension } from '@repo/shared/contract';
-import { defineTool } from '@earendil-works/pi-coding-agent';
-/**
- * Read tool implementation: numbered file content with line range and
- * regex filtering, directory listing (line count, size, or `folder`,
- * optionally recursive), PDF → markdown extraction, binary images as
- * base64 image blocks.
- */
+import { defineTool, formatSize } from '@earendil-works/pi-coding-agent';
+/** Read tool implementation: numbered file content with line range and regex filtering, directory listing (line count, size, or `folder`, optionally recursive), PDF → markdown extraction, binary images as base64 image blocks. */
 import { extractPagesMarkdown } from '@firecrawl/pdf-inspector';
 import { text } from '@repo/shared/text';
 import { Buffer } from 'node:buffer';
@@ -54,13 +49,6 @@ const IMAGE_MIME: Record<string, string> = {
 const compileFilter = (pattern: string | undefined): RegExp | undefined =>
 	pattern === undefined ? undefined : new RegExp(pattern, 'u');
 
-/** Human-readable byte size, e.g. `913B`, `3.5KB`, `1.2MB`. */
-export function formatSize(bytes: number): string {
-	if (bytes < 1024) return `${bytes}B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-}
-
 /** One directory entry: `path: folder`, `path: N lines, SIZE`, or `path: SIZE` (binary). */
 async function describeFile(absolute: string, shown: string): Promise<string> {
 	const bytes = await Bun.file(absolute).bytes();
@@ -78,8 +66,7 @@ async function describeFile(absolute: string, shown: string): Promise<string> {
 	return `${shown}: ${count} lines, ${size}`;
 }
 
-/** Directory listing: every child with its line count (when countable), size,
- * or `folder` marker; nested paths when `recursive`. */
+/** Directory listing: every child with its line count (when countable), size, or `folder` marker; nested paths when `recursive`. */
 export async function listDirectory(path: string, options: ListOptions = {}): Promise<string> {
 	const filter = compileFilter(options.filter);
 	const keep = (shown: string): boolean => filter === undefined || filter.test(shown);
@@ -97,8 +84,7 @@ export async function listDirectory(path: string, options: ListOptions = {}): Pr
 	return lines.join('\n');
 }
 
-/** Number each line (`N line`, original numbering); `start`/`end` select a
- * 1-based inclusive range and `filter` keeps only matching lines. */
+/** Number each line (`N line`, original numbering); `start`/`end` select a 1-based inclusive range and `filter` keeps only matching lines. */
 export function numberLines(content: string, options: ReadOptions = {}): string {
 	if (content === '') return '';
 	const lines = content.replace(/\n$/u, '').split('\n');
@@ -113,9 +99,7 @@ export function numberLines(content: string, options: ReadOptions = {}): string 
 	return out.join('\n');
 }
 
-/** Read a file (numbered, ranged, filtered; PDFs are extracted to markdown
- * first; binary images become base64 image blocks) or a directory (see
- * listDirectory). */
+/** Read a file (numbered, ranged, filtered; PDFs are extracted to markdown first; binary images become base64 image blocks) or a directory (see listDirectory). */
 export async function readPath(path: string, options: ReadOptions = {}): Promise<ReadResult> {
 	let isDirectory: boolean;
 	try {

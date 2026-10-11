@@ -1,6 +1,5 @@
 /**
- * Skill extension: expose a SKILL.md file to the agent.
- */
+ * Skill extension: expose a SKILL.md file to the agent. */
 import type { Extension } from '@repo/shared/contract';
 
 export default function skill(path: string | Array<string>): Extension {

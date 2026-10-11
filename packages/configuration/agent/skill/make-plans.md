@@ -100,9 +100,7 @@ Example:
 ### Create `src/foo.ts`
 
 ```TypeScript <!- use code block for miltiline code ->
-export type APIResponse = {
-	status: string
-};
+export type APIResponse = { status: string };
 ```
 
 - type definition for the API
@@ -123,11 +121,7 @@ export type APIResponse = {
 - <!-- explanation, if no change to this export, say "keep original" -->
 
 ```TypeScript
-export class User {
-	constructor(info: { email: string, password: string });
-	getPasswordHash(): string;
-	getOrders(): Array<Order>;
-}
+export class User { constructor(info: { email: string, password: string }); getPasswordHash(): string; getOrders(): Array<Order>; }
 ```
 
 The class for a user entity.

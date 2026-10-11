@@ -5,6 +5,7 @@ import {
 	skill,
 	// toolApplyPatch,
 	toolBash,
+	toolCodemode,
 	toolDelete,
 	toolEdit,
 	toolWrite,
@@ -34,6 +35,7 @@ defineAgent({
 	description:
 		'Fast execution specialist. Receives complete context and task spec, completes defined tasks efficiently.',
 	extensions: [
+		toolCodemode(),
 		toolBash,
 		toolFetch,
 		toolRead,

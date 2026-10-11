@@ -1,13 +1,5 @@
-/**
- * Framework entry (Pi extension). One SynthKernel context per controller
- * process, stashed on globalThis so every module instance — the controller
- * extension, background SDK session extensions — shares one kernel.
- *
- * Module order matters: Agents first (definitions), Sessions second (the
- * session world), Controller last (consumes both). Each session's glue —
- * identity, prompt, tools — belongs to its own Session instance, one per
- * Pi session runner.
- */
+/** Framework entry (Pi extension). One SynthKernel context per controller process, stashed on globalThis so every module instance — the controller extension, background SDK session extensions — shares one kernel.
+ * Module order matters: Agents first (definitions), Sessions second (the session world), Controller last (consumes both). Each session's glue — identity, prompt, tools — belongs to its own Session instance, one per Pi session runner. */
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { KernelContract } from '@repo/shared/contract';
 import type { Context as KernelContext } from 'synthkernel';

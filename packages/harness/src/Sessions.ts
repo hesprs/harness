@@ -15,14 +15,7 @@ import {
 } from '@/model';
 import { hostPi } from '@/patch.ts';
 
-/**
- * Sessions module: the session world. Owns the active application session,
- * the viewed session, the pending agent, pi-session identity bindings, the
- * live agent sessions — plus every session lifecycle operation: bind-by-file,
- * controller registration, spawn, on-demand background session creation, and
- * watcher-driven deletion: deleting a session's record file (or a topic
- * file) aborts the affected sessions.
- */
+/** Sessions module: the session world. Owns the active application session, the viewed session, the pending agent, pi-session identity bindings, the live agent sessions — plus every session lifecycle operation: bind-by-file, controller registration, spawn, on-demand background session creation, and watcher-driven deletion: deleting a session's record file (or a topic file) aborts the affected sessions. */
 
 export type SessionBinding = {
 	sessionId: string;
@@ -38,10 +31,9 @@ type TrackedDir = { close: () => void; handlers: Map<string, () => void> };
 export type LiveSession = {
 	dispose: () => void;
 	isStreaming: boolean;
-	/** `source: 'extension'` keeps programmatic prompts out of the target's
-	 * human-input transform. */
+	/** `source: 'extension'` keeps programmatic prompts out of the target's human-input transform. */
 	prompt: (text: string, options?: { source: 'extension' }) => Promise<void>;
-	steer: (text: string) => Promise<void>;
+	steer: (text: string) => Promise<string>;
 	sessionManager: { getSessionFile: () => string | undefined };
 };
 
@@ -56,8 +48,7 @@ function bindingOf(folder: string, record: SessionRecord): SessionBinding {
 }
 
 export default class Sessions {
-	/** The active application session's meta — seeded from disk once (at
-	 * activation or creation), mutated in memory, persisted fire-and-forget. */
+	/** The active application session's meta — seeded from disk once (at activation or creation), mutated in memory, persisted fire-and-forget. */
 	private meta: AppMeta | undefined;
 	private get appFolder(): string | undefined {
 		return this.meta?.appFolder;
@@ -71,9 +62,7 @@ export default class Sessions {
 	private readonly sessions = new Map<string, Session>();
 	private readonly trackedDirs = new Map<string, TrackedDir>();
 
-	/** Bind the pi session owning `file`: the record matching it in the active
-	 * app session or any app session under `root` — records opened outside
-	 * our commands (native /resume, `pi -r`) still bind. */
+	/** Bind the pi session owning `file`: the record matching it in the active app session or any app session under `root` — records opened outside our commands (native /resume, `pi -r`) still bind. */
 	private readonly bindByFile = async (
 		piSessionId: string,
 		file: string,
@@ -96,9 +85,7 @@ export default class Sessions {
 		return undefined;
 	};
 
-	/** Provision the pending controller session: locate its record file inside
-	 * the active app session (pi allocates session files in the default
-	 * sessions dir; the session relocates them). */
+	/** Provision the pending controller session: locate its record file inside the active app session (pi allocates session files in the default sessions dir; the session relocates them). */
 	private readonly provisionPending = (
 		agent: string,
 	): { recordPath: string; sessionId: string } => {
@@ -113,8 +100,7 @@ export default class Sessions {
 		return this.pendingRecord;
 	};
 
-	/** Register the controller session as a fresh agent session (leader's
-	 * child) on the first user message. */
+	/** Register the controller session as a fresh agent session (leader's child) on the first user message. */
 	private readonly registerViewing = (opts: {
 		piSessionId: string;
 		agent: string;
@@ -177,8 +163,7 @@ export default class Sessions {
 		return { recordPath, sessionId };
 	};
 
-	/** The live session for a harness session id: the viewed session itself,
-	 * an attached background session, or one created on demand. */
+	/** The live session for a harness session id: the viewed session itself, an attached background session, or one created on demand. */
 	private readonly ensureLive = async (sessionId: string): Promise<Session> => {
 		const existing = this.sessions.get(sessionId);
 		if (this.currentViewing === sessionId && existing !== undefined) return existing;
@@ -195,8 +180,7 @@ export default class Sessions {
 		return session;
 	};
 
-	/** Run `onGone` when `path` disappears: one directory watcher per parent
-	 * directory, tracking the file names of interest. */
+	/** Run `onGone` when `path` disappears: one directory watcher per parent directory, tracking the file names of interest. */
 	private readonly track = (path: string, onGone: () => void): void => {
 		const abs = resolve(path);
 		const dir = dirname(abs);
@@ -223,16 +207,14 @@ export default class Sessions {
 		}
 	};
 
-	/** Watch a session's record file and topic file: deleting either aborts
-	 * the session — a topic deletion cascades over the whole topic. */
+	/** Watch a session's record file and topic file: deleting either aborts the session — a topic deletion cascades over the whole topic. */
 	private readonly watchSession = (record: SessionRecord): void => {
 		this.track(record.recordPath, () => void this.abortRecord(record.recordPath));
 		const topic = record.topic;
 		if (topic !== undefined) this.track(topic, () => void this.abortTopic(topic));
 	};
 
-	/** A session's record file disappeared: erase the session. A missing
-	 * meta means the whole app folder went — nothing left to erase. */
+	/** A session's record file disappeared: erase the session. A missing meta means the whole app folder went — nothing left to erase. */
 	private readonly abortRecord = async (path: string): Promise<void> => {
 		const meta = this.meta;
 		if (meta === undefined) return;
@@ -250,9 +232,7 @@ export default class Sessions {
 		}
 	};
 
-	/** Start a new application session: tear down the old one, create the
-	 * folder. The single creation point — every new-app-session flow goes
-	 * through here. */
+	/** Start a new application session: tear down the old one, create the folder. The single creation point — every new-app-session flow goes through here. */
 	private readonly beginAppSession = async (root: string): Promise<void> => {
 		this.reset();
 		this.meta = await createAppSession(root);
@@ -285,9 +265,7 @@ export default class Sessions {
 		return meta;
 	};
 
-	/** Create a background SDK session continuing `record` and bind its identity.
-	 * Built from the host's module so the session can later be adopted by the
-	 * interactive runtime (see ./patch.ts). */
+	/** Create a background SDK session continuing `record` and bind its identity. Built from the host's module so the session can later be adopted by the interactive runtime (see ./patch.ts). SDK sessions do not load built-in extensions, so `createMcpExtension` is passed explicitly — agent definitions that register MCP servers work in background sessions. */
 	private async createBackground(record: SessionRecord): Promise<LiveSession> {
 		if (this.appFolder === undefined || this.cwd === undefined)
 			throw new Error('no application session');
@@ -295,8 +273,19 @@ export default class Sessions {
 		const pi = await hostPi();
 		const sessionManager = pi.SessionManager.open(record.recordPath, undefined, this.cwd);
 		this.bindings.set(sessionManager.getSessionId(), bindingOf(this.appFolder, record));
-		const { session } = await pi.createAgentSession({ cwd: this.cwd, sessionManager });
-		// CreateAgentSession runs extension factories but never emits session_start.
+		const agentDir = pi.getAgentDir();
+		const resourceLoader = new pi.DefaultResourceLoader({
+			agentDir,
+			cwd: this.cwd,
+			extensionFactories: [pi.createMcpExtension()],
+			settingsManager: pi.SettingsManager.create(this.cwd, agentDir),
+		});
+		await resourceLoader.reload();
+		const { session } = await pi.createAgentSession({
+			cwd: this.cwd,
+			resourceLoader,
+			sessionManager,
+		});
 		await session.bindExtensions({});
 		return session;
 	}

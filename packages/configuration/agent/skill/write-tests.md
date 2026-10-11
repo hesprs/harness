@@ -5,8 +5,7 @@ description: Defines test standards. Must use before writing any test code.
 
 # Write tests
 
-**Core principle**: Tests should verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't.
-**Your work**: Write requested tests with respect to the styles below.
+**Core principle**: Tests should verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. **Your work**: Write requested tests with respect to the styles below.
 
 ## Phasing
 

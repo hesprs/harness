@@ -1,10 +1,5 @@
 import type { ThinkingLevel } from '@earendil-works/pi-agent-core';
-/**
- * Agents module: agent definitions — harness.config.ts loading (user scope
- * first, then trusted cwd scope) and the registry. Loading happens once per
- * process (Bun's import cache cannot be busted, so `/reload` does not
- * refresh definitions).
- */
+/** Agents module: agent definitions — harness.config.ts loading (user scope first, then trusted cwd scope) and the registry. Loading happens once per process (Bun's import cache cannot be busted, so `/reload` does not refresh definitions). */
 import type {
 	AgentDefinition,
 	BaseAgentArgs,
@@ -29,14 +24,7 @@ type Layer = {
 	named: Map<string, NamedAgentArgs>;
 };
 
-/**
- * Agent registry. Populated by importing `harness.config.ts` files (user
- * scope first, then cwd scope). Definition order is preserved for "first
- * defined agent wins". Effective definitions merge layers in priority
- * order `cwd named > user named > cwd base > user base`: `model`/`thinking`
- * are overridden by the highest layer that sets them, `prompt`/`extensions`
- * accumulate from all layers.
- */
+/** Agent registry. Populated by importing `harness.config.ts` files (user scope first, then cwd scope). Definition order is preserved for "first defined agent wins". Effective definitions merge layers in priority order `cwd named > user named > cwd base > user base`: `model`/`thinking` are overridden by the highest layer that sets them, `prompt`/`extensions` accumulate from all layers. */
 export class Registry {
 	private readonly scopes: Record<Scope, Layer> = {
 		cwd: { base: { extensions: [], prompts: [] }, named: new Map() },

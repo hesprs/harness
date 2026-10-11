@@ -185,8 +185,7 @@ test('successful edits produce a renderable diff', () => {
 });
 
 test('the diff elides distant context with ellipses', () => {
-	// Eight visible lines (single-digit numbering); the edit sits far from
-	// The start, so the leading gap is elided.
+	// Eight visible lines (single-digit numbering); the edit sits far from The start, so the leading gap is elided.
 	const content = ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7', 'l8'].join('\n');
 	const result = applyEdits(content, [{ newText: 'X', oldText: 'l6' }]);
 	expect(result.diff).toBe(

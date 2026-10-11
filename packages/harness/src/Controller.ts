@@ -1,11 +1,4 @@
-/**
- * Controller module: the human surface and the inter-agent semantics. Talk
- * routing (leader queue, foreground/background delivery via the target
- * session), the agent hierarchy and the talkable-agent manifest, the
- * commander-00001 identity, talk message rendering — plus the swap gate and
- * the /shift, /apps and /talks commands. The handoff machinery itself lives
- * in ./patch.ts.
- */
+/** Controller module: the human surface and the inter-agent semantics. Talk routing (leader queue, foreground/background delivery via the target session), the agent hierarchy and the talkable-agent manifest, the commander-00001 identity, talk message rendering — plus the swap gate and the /shift, /apps and /talks commands. The handoff machinery itself lives in ./patch.ts. */
 import type {
 	EntryRenderer,
 	ExtensionAPI,
@@ -36,10 +29,7 @@ export type TalkableSession = {
 
 type Relationship = 'leader' | 'colleague' | 'child';
 
-/**
- * The effective parent of a session: its topic leader when it belongs to a
- * topic, otherwise its spawner.
- */
+/** The effective parent of a session: its topic leader when it belongs to a topic, otherwise its spawner. */
 function parentOf(meta: AppMeta, id: string): string | undefined {
 	const record = meta.sessions[id];
 	if (!record) return undefined;
@@ -65,8 +55,7 @@ export function relationship(meta: AppMeta, from: string, to: string): Relations
 	}
 }
 
-/** Render one talkable session's manifest content (unwrapped: the
- * `<agent>` wrapper is added after extensions have transformed the text). */
+/** Render one talkable session's manifest content (unwrapped: the `<agent>` wrapper is added after extensions have transformed the text). */
 export function talkableEntry({
 	description,
 	id,
@@ -129,8 +118,7 @@ export function decodeTalk(content: string): {
 	return JSON.parse(content) as { from: string; message: string; relationship: string };
 }
 
-/** Render a talk for the controller waterfall: an accent-colored header line
- * over the markdown-rendered message — distinct from thinking text. */
+/** Render a talk for the controller waterfall: an accent-colored header line over the markdown-rendered message — distinct from thinking text. */
 function renderTalkBlock(from: string, rel: string, message: string, theme: Theme): VStack {
 	return new VStack(
 		[
@@ -141,17 +129,13 @@ function renderTalkBlock(from: string, rel: string, message: string, theme: Them
 	);
 }
 
-/** Render a talk message delivered into the viewed session. Registered at
- * factory time: the TUI renders session history before session_start fires
- * (renderBeforeBind on every switch), so the renderer must exist by then. */
+/** Render a talk message delivered into the viewed session. Registered at factory time: the TUI renders session history before session_start fires (renderBeforeBind on every switch), so the renderer must exist by then. */
 const renderTalk: MessageRenderer = (message, _options, theme) => {
 	const { from, message: msg, relationship: rel } = decodeTalk(message.content as string);
 	return renderTalkBlock(from, rel, msg, theme);
 };
 
-/** Render a leader-talk entry (a background session's talk, or a /talks
- * replay) for the controller waterfall. A CustomEntry is display-only:
- * unlike the talk message above, it never enters LLM context. */
+/** Render a leader-talk entry (a background session's talk, or a /talks replay) for the controller waterfall. A CustomEntry is display-only: unlike the talk message above, it never enters LLM context. */
 const renderTalkEntry: EntryRenderer<LeaderTalk> = ({ data }, _options, theme) =>
 	data === undefined
 		? undefined
@@ -166,10 +150,7 @@ export default class Controller {
 	/** Talk delivery holds while a session swap is in flight. */
 	private shifting: Promise<void> | undefined;
 
-	/** Register the per-session surface at factory time: pi re-runs the
-	 * extension factory for every session's runner, before the TUI renders
-	 * history on a switch — commands and the talk renderer exist in time.
-	 * Any session may register; only the interactive one is attached below. */
+	/** Register the per-session surface at factory time: pi re-runs the extension factory for every session's runner, before the TUI renders history on a switch — commands and the talk renderer exist in time. Any session may register; only the interactive one is attached below. */
 	private readonly registerSurface = (pi: ExtensionAPI): void => {
 		this.registerCommands(pi);
 		pi.registerMessageRenderer('talk', renderTalk);
@@ -181,18 +162,13 @@ export default class Controller {
 		this.pi = pi;
 	};
 
-	/** Route a talk: leader queue, or delivery into the target session. Only
-	 * the routing is awaited (shift gate, validation, leader-queue write);
-	 * the delivery itself is fired and forgotten — the talker's turn ends
-	 * once the intent is recorded, and the target's turn is the target's own. */
+	/** Route a talk: leader queue, or delivery into the target session. Only the routing is awaited (shift gate, validation, leader-queue write); the delivery itself is fired and forgotten — the talker's turn ends once the intent is recorded, and the target's turn is the target's own. */
 	private readonly deliverTalk = async (
 		from: string,
 		to: string,
 		message: string,
 	): Promise<void> => {
-		// Hold delivery while the controller swaps sessions: a talk landing mid-swap
-		// Could otherwise lazily create a background session racing the swap onto
-		// The same record (one-writer violation).
+		// Hold delivery while the controller swaps sessions: a talk landing mid-swap Could otherwise lazily create a background session racing the swap onto The same record (one-writer violation).
 		if (this.shifting !== undefined) await this.shifting;
 		const meta = this.ctx.meta();
 		// The role of `from` as seen by `to`.
@@ -202,8 +178,7 @@ export default class Controller {
 			this.ctx.mutateMeta((m) => {
 				(m.leaderTalks ??= []).push(talk);
 			});
-			// The viewed session's own talks surface through the talk tool
-			// Result; background talks surface as a waterfall entry here.
+			// The viewed session's own talks surface through the talk tool Result; background talks surface as a waterfall entry here.
 			if (this.ctx.viewing() !== from) this.pi?.appendEntry('talk', talk);
 			return;
 		}
@@ -218,9 +193,7 @@ export default class Controller {
 		return formatTalkNotice(LEADER_ID, rel, text);
 	};
 
-	/** The talkable manifest for one session: each roster entry rendered as
-	 * plain text, dispatched through the entry's own session so its
-	 * extensions may transform it, then wrapped per agent. */
+	/** The talkable manifest for one session: each roster entry rendered as plain text, dispatched through the entry's own session so its extensions may transform it, then wrapped per agent. */
 	private readonly talkableFor = (selfId: string): Array<string> => {
 		const meta = this.ctx.meta();
 		const roster = talkableSessions(meta, (name) => this.ctx.get(name), selfId);
@@ -268,9 +241,7 @@ export default class Controller {
 		}
 		const record = picked === undefined ? undefined : meta.sessions[picked];
 		if (record === undefined) return;
-		// Adopt the target's live session: the controller hosts it as-is
-		// (mid-generation included) instead of opening its record. session_start
-		// (re-fired by the rebind) binds and marks it viewed.
+		// Adopt the target's live session: the controller hosts it as-is (mid-generation included) instead of opening its record. session_start (re-fired by the rebind) binds and marks it viewed.
 		await this.shiftAway(ctx, async () => {
 			const live = this.ctx.takeLive(record.id);
 			if (live !== undefined) offerAdoption(record.recordPath, live);
@@ -291,11 +262,7 @@ export default class Controller {
 		await this.shiftAway(ctx, () => ctx.newSession());
 	};
 
-	/**
-	 * Swap sessions while preserving the controller's in-flight turn: shield
-	 * the viewed session through teardown, then adopt the captured session as
-	 * a background session.
-	 */
+	/** Swap sessions while preserving the controller's in-flight turn: shield the viewed session through teardown, then adopt the captured session as a background session. */
 	private readonly shiftAway = async (
 		ctx: CommandContext,
 		swap: () => Promise<unknown>,
@@ -357,8 +324,7 @@ export default class Controller {
 		});
 	};
 
-	/** /talks → replay the talks received by the leader into the waterfall as
-	 * custom entries: rendered by renderTalkEntry, never sent to the model. */
+	/** /talks → replay the talks received by the leader into the waterfall as custom entries: rendered by renderTalkEntry, never sent to the model. */
 	private readonly talks = (): void => {
 		if (this.ctx.appFolder() === undefined || this.pi === undefined) return;
 		const meta = this.ctx.meta();

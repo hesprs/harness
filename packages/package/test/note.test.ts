@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { KernelContract } from '@repo/shared/contract';
-import { SYSTEM_REMINDER_CHANNEL, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
+import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,10 +37,15 @@ function makePi(tools: Array<string> = ['write']) {
 
 type Fixture = {
 	appFolder: string;
+	event: ReturnType<typeof makeEvent>;
 	fire: ReturnType<typeof makePi>['fire'];
 	listeners: Map<string, Array<(data: unknown) => void>>;
 	root: string;
 };
+
+function makeEvent() {
+	return { systemPromptOptions: { sections: {} as Record<string, string> } };
+}
 
 async function setup(tools?: Array<string>): Promise<Fixture> {
 	const root = mkdtempSync(join(tmpdir(), 'harness-note-'));
@@ -64,27 +69,17 @@ async function setup(tools?: Array<string>): Promise<Fixture> {
 		getSystemPrompt: () => 'base prompt',
 		sessionManager: { getSessionId: () => 'pi-1' },
 	};
-	await fire('before_agent_start', { type: 'before_agent_start' }, ctx);
-	return { appFolder, fire, listeners, root };
+	const event = makeEvent();
+	await fire('before_agent_start', event, ctx);
+	return { appFolder, event, fire, listeners, root };
 }
 
-test('the note section lands in the system prompt and the note file is created', async () => {
-	const { fire, root } = await setup();
+test('the note section lands in systemPromptOptions.sections and the note file is created', async () => {
+	const { event, root } = await setup();
 	try {
-		const result = (
-			await fire(
-				'before_agent_start',
-				{},
-				{
-					getSystemPrompt: () => 'base prompt',
-					sessionManager: { getSessionId: () => 'pi-1' },
-				},
-			)
-		)[0] as { systemPrompt: string };
-		expect(result.systemPrompt.startsWith('base prompt')).toBe(true);
-		expect(result.systemPrompt).toContain('<personal-note>');
-		expect(result.systemPrompt).toContain(join(root, 'app-1', 'worker-00001.md'));
-		expect(result.systemPrompt).toContain('You can edit this note');
+		const section = event.systemPromptOptions.sections['personal-note'];
+		expect(section).toContain(join(root, 'app-1', 'worker-00001.md'));
+		expect(section).toContain('You can edit this note');
 		expect(existsSync(join(root, 'app-1', 'worker-00001.md'))).toBe(true);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
@@ -92,69 +87,11 @@ test('the note section lands in the system prompt and the note file is created',
 });
 
 test('without note-editing tools the section omits the editing instruction', async () => {
-	const { fire, root } = await setup([]);
+	const { event, root } = await setup([]);
 	try {
-		const result = (
-			await fire(
-				'before_agent_start',
-				{},
-				{
-					getSystemPrompt: () => '',
-					sessionManager: { getSessionId: () => 'pi-1' },
-				},
-			)
-		)[0] as { systemPrompt: string };
-		expect(result.systemPrompt).toContain('<personal-note>');
-		expect(result.systemPrompt).not.toContain('You can edit this note');
-	} finally {
-		rmSync(root, { force: true, recursive: true });
-	}
-});
-
-test('the context handler only refreshes the cache, injecting no messages', async () => {
-	const { appFolder, fire, root } = await setup();
-	try {
-		await Bun.write(join(appFolder, 'worker-00001.md'), 'my todo');
-		const results = await fire(
-			'context',
-			{ messages: [] },
-			{
-				sessionManager: { getSessionId: () => 'pi-1' },
-			},
-		);
-		expect(results).toEqual([{}]);
-	} finally {
-		rmSync(root, { force: true, recursive: true });
-	}
-});
-
-test('the system-reminder listener appends the cached note of the event session', async () => {
-	const { appFolder, fire, listeners, root } = await setup();
-	try {
-		await Bun.write(join(appFolder, 'worker-00001.md'), 'my todo');
-		// A turn refreshes the cache before the event can be answered.
-		await fire(
-			'context',
-			{ messages: [] },
-			{
-				sessionManager: { getSessionId: () => 'pi-1' },
-			},
-		);
-		const payload = { text: '' };
-		for (const listener of listeners.get(SYSTEM_REMINDER_CHANNEL) ?? []) listener(payload);
-		expect(payload.text).toBe('my todo');
-		// An empty note leaves the payload untouched.
-		await Bun.write(join(appFolder, 'worker-00001.md'), '');
-		await fire(
-			'context',
-			{ messages: [] },
-			{
-				sessionManager: { getSessionId: () => 'pi-1' },
-			},
-		);
-		const empty = { text: '' };
-		for (const listener of listeners.get(SYSTEM_REMINDER_CHANNEL) ?? []) listener(empty);
-		expect(empty.text).toBe('');
+		const section = event.systemPromptOptions.sections['personal-note'];
+		expect(section).toBeDefined();
+		expect(section).not.toContain('You can edit this note');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -165,14 +102,11 @@ test('the talkable-info listener attaches the cached note of the event session',
 	const bare = await setup(); // Note file exists but is empty
 	try {
 		await Bun.write(join(appFolder, 'worker-00001.md'), 'working on x');
-		// A turn refreshes the cache before the event can be answered.
-		await fire(
-			'context',
-			{ messages: [] },
-			{
-				sessionManager: { getSessionId: () => 'pi-1' },
-			},
-		);
+		// Refresh the cache via before_agent_start before the event can be answered.
+		await fire('before_agent_start', makeEvent(), {
+			getSystemPrompt: () => '',
+			sessionManager: { getSessionId: () => 'pi-1' },
+		});
 		const payload = { text: 'base description' };
 		for (const listener of listeners.get(TALKABLE_INFO_CHANNEL) ?? []) listener(payload);
 		expect(payload.text).toBe(`base description\n\nworking on x`);

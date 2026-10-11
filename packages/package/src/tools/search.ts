@@ -1,8 +1,5 @@
 import type { Extension } from '@repo/shared/contract';
-/**
- * Search tool: keyless semantic web search via Exa's hosted MCP service
- * (https://mcp.exa.ai/mcp, streamable HTTP, no authentication required).
- */
+/** Search tool: keyless semantic web search via Exa's hosted MCP service (https://mcp.exa.ai/mcp, streamable HTTP, no authentication required). */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';

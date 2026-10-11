@@ -50,7 +50,7 @@ function stubLive(actions: Array<string>): LiveSession {
 		sessionManager: { getSessionFile: () => {} },
 		steer: (text: string) => {
 			actions.push(`steer:${text}`);
-			return Promise.resolve();
+			return Promise.resolve('queued');
 		},
 	};
 }
@@ -111,8 +111,7 @@ test('bindByFile binds a record from any app session under the root', async () =
 			agent: 'coder',
 			piSessionId: 'pi-1',
 		});
-		// The fire-and-forget persist must land before another instance can
-		// Discover the record from disk.
+		// The fire-and-forget persist must land before another instance can Discover the record from disk.
 		await until(
 			async () =>
 				(await diskMeta(created.appFolder)).sessions[created.sessionId] !== undefined,

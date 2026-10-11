@@ -48,7 +48,7 @@
 		"react/react-in-jsx-scope": "off",
 		"unicorn/no-await-expression-member": "off",
 		"eslint/no-await-in-loop": "off",
-		"eslint/max-params": ["warn", { "max": 4 }],
+		"eslint/max-params": ["warn", { "max": 5 }],
 		"unicorn/filename-case": [
 			"warn",
 			{

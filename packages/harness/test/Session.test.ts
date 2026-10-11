@@ -1,6 +1,6 @@
 import type { Kernel } from '@';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { LEADER_ID, SYSTEM_REMINDER_CHANNEL, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
+import { LEADER_ID, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -195,23 +195,24 @@ test('session_start of a background session binds the spawner-registered identit
 	expect(bound).toEqual(['worker-bg001']);
 });
 
-test('before_agent_start builds the system prompt: meta, instructions, skills', async () => {
+test('before_agent_start sets customPrompt with meta and instructions', async () => {
 	const made = await startedSession({
 		get: () => ({ description: 'd', extensions: [], prompts: ['be fast'] }),
 	});
-	const result = (
-		await made.fire('before_agent_start', { type: 'before_agent_start' }, made.ctx)
-	)[0] as {
-		systemPrompt: string;
+	const event = {
+		systemPromptOptions: {
+			customPrompt: undefined as string | undefined,
+			sections: {} as Record<string, string>,
+		},
 	};
-	expect(result.systemPrompt).toContain('<meta>');
-	expect(result.systemPrompt).toContain('`worker-abcde`');
-	expect(result.systemPrompt).toContain('<instructions>');
-	expect(result.systemPrompt).toContain('be fast');
-	expect(result.systemPrompt).toContain('<available_skills>skill x</available_skills>');
+	await made.fire('before_agent_start', event, made.ctx);
+	expect(event.systemPromptOptions.customPrompt).toContain('<meta>');
+	expect(event.systemPromptOptions.customPrompt).toContain('`worker-abcde`');
+	expect(event.systemPromptOptions.customPrompt).toContain('<instructions>');
+	expect(event.systemPromptOptions.customPrompt).toContain('be fast');
 });
 
-test('the reminder carries the topic and talkable manifest, gated by the contributors', async () => {
+test('before_agent_start sets topic and talkables sections', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'harness-session-'));
 	try {
 		const topic = join(root, 'topic.md');
@@ -228,18 +229,15 @@ test('the reminder carries the topic and talkable manifest, gated by the contrib
 				`<agent>\n<id>${LEADER_ID}</id>\n<description>coordinator</description>\n<relation>leader</relation>\n</agent>`,
 			],
 		});
-		const first = (await made.fire('context', { messages: [] }, made.ctx))[0] as {
-			messages: Array<{ content: Array<{ text: string }> }>;
+		const event = {
+			systemPromptOptions: {
+				customPrompt: undefined as string | undefined,
+				sections: {} as Record<string, string>,
+			},
 		};
-		const body = first.messages.at(-1)?.content[0]?.text ?? '';
-		expect(body).toContain('<system-reminder>');
-		expect(body).toContain('# the topic');
-		expect(body).toContain('<talkable-agents>');
-		expect(body).toContain(LEADER_ID);
-		// Immediately again: the contributors' own intervals gate them out, and
-		// With no other contributor the reminder is empty.
-		const second = (await made.fire('context', { messages: [] }, made.ctx))[0];
-		expect(second).toEqual({});
+		await made.fire('before_agent_start', event, made.ctx);
+		expect(event.systemPromptOptions.sections.topic).toBe('# the topic');
+		expect(event.systemPromptOptions.sections.talkables).toContain(LEADER_ID);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -286,7 +284,7 @@ test('deliver steers a streaming live session, prompts an idle one, sends foregr
 		sessionManager: { getSessionFile: () => {} },
 		steer: (text: string) => {
 			actions.push(`steer:${text}`);
-			return Promise.resolve();
+			return Promise.resolve('queued');
 		},
 	});
 	// Foreground (no live): sendMessage with the rendered talk message.
@@ -304,20 +302,6 @@ test('deliver steers a streaming live session, prompts an idle one, sends foregr
 		`steer:[talk from \`${LEADER_ID}\` (leader)] mid-turn`,
 		`prompt:[talk from \`${LEADER_ID}\` (leader)] wake up`,
 	]);
-});
-
-test('the reminder content is gathered through the system-reminder event', async () => {
-	const made = await startedSession();
-	made.pi.events.on(SYSTEM_REMINDER_CHANNEL, (data) => {
-		(data as { text: string }).text += 'extension contribution';
-	});
-	const first = (await made.fire('context', { messages: [] }, made.ctx))[0] as {
-		messages: Array<{ content: Array<{ text: string }> }>;
-	};
-	const body = first.messages.at(-1)?.content[0]?.text ?? '';
-	expect(body).toContain('extension contribution');
-	expect(body.startsWith('<system-reminder>\n')).toBe(true);
-	expect(body.endsWith('\n</system-reminder>')).toBe(true);
 });
 
 test('info dispatches the talkable event on the session bus and returns the mutated payload', async () => {

@@ -1,9 +1,5 @@
 import type { Extension } from '@repo/shared/contract';
-/**
- * Delete tool: removes a file. The harness watches session record and topic
- * files on its own and reacts to their deletion — this tool knows nothing
- * about sessions.
- */
+/** Delete tool: removes a file. The harness watches session record and topic files on its own and reacts to their deletion — this tool knows nothing about sessions. */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { existsSync } from 'node:fs';
@@ -17,6 +13,10 @@ export async function deletePath(path: string): Promise<string> {
 	return `File ${path} deleted`;
 }
 
+const deleteOutputSchema = Type.Object({
+	path: Type.String({ description: 'The deleted file path' }),
+});
+
 // Extension that registers the `delete` tool.
 export const toolDelete: Extension = (pi) => {
 	registerActive(
@@ -25,13 +25,18 @@ export const toolDelete: Extension = (pi) => {
 			description: 'Delete a file.',
 			async execute(_toolCallId, params) {
 				try {
-					return text(await deletePath(params.path));
+					await deletePath(params.path);
+					return {
+						...text(`File ${params.path} deleted`),
+						structuredContent: { path: params.path },
+					};
 				} catch (error) {
 					return text(errText(error), true);
 				}
 			},
 			label: 'Delete',
 			name: 'delete',
+			outputSchema: deleteOutputSchema,
 			parameters: Type.Object({ path: Type.String({ description: 'File path to delete' }) }),
 		}),
 	);

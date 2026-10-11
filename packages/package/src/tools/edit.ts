@@ -1,20 +1,8 @@
+/** Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named extension tool wins in Pi's tool registry). Matching first tries the exact substring, then a whitespace-less pass: every whitespace character is stripped from both sides. and a fuzzy match always replaces whole lines of real file text — never the query.
+ * An ambiguous match is reported with 1-indexed line numbers instead of guessing; the top-level `replaceAll` opts into every occurrence instead. All edits in one call match the original content (not incrementally) and apply bottom-up. A bad edit never sinks the others: it is skipped and named in `failures`, while the matchable ones still land and are named in `applied`. */
 import type { Extension } from '@repo/shared/contract';
+import type { Static } from 'typebox';
 import { defineTool } from '@earendil-works/pi-coding-agent';
-/**
- * Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named
- * extension tool wins in Pi's tool registry). Matching first tries the
- * exact substring, then a whitespace-less pass: every
- * whitespace character is stripped from both sides.
- * and a fuzzy match always replaces whole lines of real file
- * text — never the query.
- *
- * An ambiguous match is reported with 1-indexed line numbers instead of
- * guessing; the top-level `replaceAll` opts into every occurrence instead.
- * All edits in one call match the original content (not incrementally) and
- * apply bottom-up. A bad edit never sinks the others: it is skipped and
- * named in `failures`, while the matchable ones still land and are named
- * in `applied`.
- */
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
 import { registerActive } from './common.ts';
@@ -25,9 +13,7 @@ export type EditInput = {
 	oldText: string;
 };
 
-/** Whitespace-less, escape-agnostic normalization: every whitespace
- * character vanishes. `indices[i]` is the
- * source offset of chunk character `i`. */
+/** Whitespace-less, escape-agnostic normalization: every whitespace character vanishes. `indices[i]` is the source offset of chunk character `i`. */
 function normalizeChunks(source: string): { chunks: string; indices: Array<number> } {
 	const chars: Array<string> = [];
 	const indices: Array<number> = [];
@@ -40,8 +26,7 @@ function normalizeChunks(source: string): { chunks: string; indices: Array<numbe
 	return { chunks: chars.join(''), indices };
 }
 
-/** Every occurrence of `oldText` as real-text spans: the exact substring
- * when present, else the line-expanded whitespace/escape-agnostic match. */
+/** Every occurrence of `oldText` as real-text spans: the exact substring when present, else the line-expanded whitespace/escape-agnostic match. */
 function resolveSpans(
 	content: string,
 	oldText: string,
@@ -80,9 +65,7 @@ function resolveSpans(
 
 type Span = { edit: number; end: number; replacement: string; start: number };
 
-/** A renderable diff (`+line`/`-line`/context hunks, pi's renderDiff format)
- * of the applied spans — the changed regions are known exactly, so no
- * general-purpose diff algorithm is needed. */
+/** A renderable diff (`+line`/`-line`/context hunks, pi's renderDiff format) of the applied spans — the changed regions are known exactly, so no general-purpose diff algorithm is needed. */
 export function diffSpans(before: string, spans: Array<Span>, context = 4): string {
 	const allLines = before.split('\n');
 	const visible = before.endsWith('\n') ? allLines.slice(0, -1) : allLines;
@@ -90,8 +73,7 @@ export function diffSpans(before: string, spans: Array<Span>, context = 4): stri
 	const out: Array<string> = [];
 	let delta = 0; // Added minus removed lines so far
 	let cursor = 0; // First unchanged line not yet emitted
-	// Unchanged lines `from`..`to`. An `edge` gap shows the lines nearest
-	// The change(s); a longer `inner` gap elides its middle with '...'.
+	// Unchanged lines `from`..`to`. An `edge` gap shows the lines nearest The change(s); a longer `inner` gap elides its middle with '...'.
 	const emitGap = (from: number, to: number, edge: 'inner' | 'leading' | 'trailing'): void => {
 		if (to <= from) return;
 		let start = from;
@@ -133,9 +115,7 @@ export function diffSpans(before: string, spans: Array<Span>, context = 4): stri
 	return out.join('\n');
 }
 
-/** Apply every edit to `content` (LF-normalized): match all against the
- * original, write bottom-up. Unmatchable or clashing edits are skipped and
- * reported; whatever still matches is applied. */
+/** Apply every edit to `content` (LF-normalized): match all against the original, write bottom-up. Unmatchable or clashing edits are skipped and reported; whatever still matches is applied. */
 export function applyEdits(
 	content: string,
 	edits: Array<EditInput>,
@@ -200,10 +180,7 @@ export function applyEdits(
 	};
 }
 
-/** Edit a file in place. The model never includes an invisible BOM in
- * oldText, and CRLF line endings round-trip: matching happens on
- * LF-normalized content. Returns the applied edit indices, the renderable
- * diff, and the per-edit failures of whatever got skipped. */
+/** Edit a file in place. The model never includes an invisible BOM in oldText, and CRLF line endings round-trip: matching happens on LF-normalized content. Returns the applied edit indices, the renderable diff, and the per-edit failures of whatever got skipped. */
 export async function editFile(
 	path: string,
 	edits: Array<EditInput>,
@@ -231,6 +208,18 @@ const editItemSchema = Type.Object({
 	}),
 });
 
+const editOutputSchema = Type.Object({
+	applied: Type.Array(Type.Number(), {
+		description: '0-indexed edit indices that were written to disk',
+	}),
+	diff: Type.Optional(Type.String({ description: 'Renderable diff of applied changes' })),
+	failures: Type.Array(Type.String(), {
+		description: 'Per-edit failure messages for skipped edits',
+	}),
+});
+
+type EditOutput = Static<typeof editOutputSchema>;
+
 // Extension that registers the fuzzy `edit` tool, overriding Pi's built-in.
 export const toolEdit: Extension = (pi) => {
 	registerActive(
@@ -245,6 +234,11 @@ export const toolEdit: Extension = (pi) => {
 						params.edits,
 						params.replaceAll === true,
 					);
+					const structuredContent: EditOutput = {
+						applied: outcome.applied,
+						...(outcome.diff ? { diff: outcome.diff } : {}),
+						failures: outcome.failures,
+					};
 					if (outcome.failures.length) {
 						const head = outcome.applied.length
 							? `applied ${outcome.applied.length}/${params.edits.length} edit(s) in ${params.path} (edits ${outcome.applied.join(', ')} are written to disk — do not redo them); skipped:`
@@ -258,6 +252,7 @@ export const toolEdit: Extension = (pi) => {
 							],
 							details: { diff: outcome.diff },
 							isError: true,
+							structuredContent,
 						};
 					}
 					return {
@@ -268,6 +263,7 @@ export const toolEdit: Extension = (pi) => {
 							},
 						],
 						details: { diff: outcome.diff },
+						structuredContent,
 					};
 				} catch (error) {
 					return text(`could not edit ${params.path}: ${errText(error)}`, true);
@@ -275,6 +271,7 @@ export const toolEdit: Extension = (pi) => {
 			},
 			label: 'Edit',
 			name: 'edit',
+			outputSchema: editOutputSchema,
 			parameters: Type.Object({
 				edits: Type.Array(editItemSchema, {
 					description:
@@ -289,7 +286,7 @@ export const toolEdit: Extension = (pi) => {
 					}),
 				),
 			}),
-			// Pi's built-in edit renderer draws its own shell (a padded box). Without this, Pi wraps the renderer's box in the generic tool box: box in box.
+			// Pi's built-in edit renderer draws its own shell (a padded box). Withoutmaximizable: true, this, Pi wraps the renderer's box in the generic tool box: box in box.
 			renderShell: 'self',
 		}),
 	);

@@ -1,9 +1,4 @@
-/**
- * Persistence model (pure): the application-session folder + meta.json and
- * session records. No state; all mutation happens through the Sessions
- * module (single writer by construction). Relationships and talkable-agent
- * semantics live in the Controller; handoff in ./patch.ts.
- */
+/** Persistence model (pure): the application-session folder + meta.json and session records. No state; all mutation happens through the Sessions module (single writer by construction). Relationships and talkable-agent semantics live in the Controller; handoff in ./patch.ts. */
 import { existsSync, readdirSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';

@@ -1,8 +1,9 @@
+import { formatSize } from '@earendil-works/pi-coding-agent';
 import { test, expect } from 'bun:test';
 import { Buffer } from 'node:buffer';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { formatSize, listDirectory, numberLines, pdfToMarkdown, readPath } from '@/tools/read.ts';
+import { listDirectory, numberLines, pdfToMarkdown, readPath } from '@/tools/read.ts';
 import { tmpRoot, makePdf } from './utils';
 
 test('readPath returns file content for a text file', async () => {

@@ -1,11 +1,7 @@
 import type { Extension } from '@repo/shared/contract';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
-/**
- * Apply_patch: Codex-style patch envelopes (Add/Update/Delete/Move) applied
- * to the filesystem. Ported from code-yeongyu/pi-apply-patch (parser, chunk
- * seeking with fuzzy fallback, application); TUI preview omitted.
- */
+/** Apply_patch: Codex-style patch envelopes (Add/Update/Delete/Move) applied to the filesystem. Ported from code-yeongyu/pi-apply-patch (parser, chunk seeking with fuzzy fallback, application); TUI preview omitted. */
 import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from 'typebox';
@@ -419,17 +415,21 @@ eof_line: "*** End of File" LF
 export const toolApplyPatch: Extension = (pi) => {
 	const tool = defineTool({
 		description: FREEFORM_DESCRIPTION,
-		// oxlint-disable-next-line eslint/max-params -- pi's execute callback is a fixed 5-param signature
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			try {
 				const result = await applyPatch(ctx.cwd, params.input);
-				return text(result.summary);
+				return { ...text(result.summary), structuredContent: result };
 			} catch (error) {
 				return text(`apply_patch failed: ${errText(error)}`, true);
 			}
 		},
 		label: 'ApplyPatch',
 		name: 'apply_patch',
+		outputSchema: Type.Object({
+			summary: Type.String({
+				description: 'Per-file operation summary (add/delete/update/move)',
+			}),
+		}),
 		parameters: Type.Object({
 			input: Type.String({ description: 'The entire apply_patch command' }),
 		}),

@@ -1,13 +1,5 @@
+/** Spawn tool: creates colleague/child agent sessions through the in-process controller operations. The spawning agent must supply the new session's starting prompt — delivered as the spawner's first talk to the new agent, kicking off its first turn the way a human user's opening prompt starts a session. A catalog of the allowed spawnable agents (descriptions resolved from the global agent registry) is appended to the agent's system instruction so it knows what it can spawn. */
 import type { Extension } from '@repo/shared/contract';
-/**
- * Spawn tool: creates colleague/child agent sessions through the in-process
- * controller operations. The spawning agent must supply the new session's
- * starting prompt — delivered as the spawner's first talk to the new agent,
- * kicking off its first turn the way a human user's opening prompt starts a
- * session. A catalog of the allowed spawnable agents (descriptions resolved
- * from the global agent registry) is appended to the agent's system
- * instruction so it knows what it can spawn.
- */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { kernel, LEADER_ID } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
@@ -39,7 +31,6 @@ export default function toolSpawn(agents: Array<string>): Extension {
 			defineTool({
 				description:
 					'Spawn a new agent session and start it with a prompt, like a human user prompting an agent to start a session. Returns the session ID and record file path. Optionally choose a markdown topic context file.',
-				// oxlint-disable-next-line eslint/max-params : fixed five-parameter execute signature from pi's ToolDefinition
 				async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 					if (!agents.includes(params.agent))
 						return text(
@@ -54,13 +45,17 @@ export default function toolSpawn(agents: Array<string>): Extension {
 						const result = await k.spawn(from, params.agent, params.topic);
 						// The starting prompt: the spawner's talk starts the new agent's first turn.
 						await k.deliverTalk(from, result.sessionId, params.prompt);
-						return text(JSON.stringify(result));
+						return { ...text(JSON.stringify(result)), structuredContent: result };
 					} catch (error) {
 						return text(errText(error), true);
 					}
 				},
 				label: 'Spawn',
 				name: 'spawn',
+				outputSchema: Type.Object({
+					recordPath: Type.String({ description: 'Session record file path' }),
+					sessionId: Type.String({ description: 'The new session ID' }),
+				}),
 				parameters: Type.Object({
 					agent: Type.String({ description: 'Agent name to spawn' }),
 					prompt: Type.String({
