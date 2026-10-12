@@ -13,9 +13,7 @@ export async function deletePath(path: string): Promise<string> {
 	return `File ${path} deleted`;
 }
 
-const deleteOutputSchema = Type.Object({
-	path: Type.String({ description: 'The deleted file path' }),
-});
+const deleteOutputSchema = Type.String({ description: 'The deleted file path' });
 
 // Extension that registers the `delete` tool.
 export const toolDelete: Extension = (pi) => {
@@ -28,7 +26,7 @@ export const toolDelete: Extension = (pi) => {
 					await deletePath(params.path);
 					return {
 						...text(`File ${params.path} deleted`),
-						structuredContent: { path: params.path },
+						structuredContent: params.path,
 					};
 				} catch (error) {
 					return text(errText(error), true);

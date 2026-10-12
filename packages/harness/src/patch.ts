@@ -22,9 +22,7 @@ function hostEntry(): string | undefined {
 		// Signature check: pi's dist ships these side by side.
 		if (existsSync(join(dist, 'core', 'agent-session.js'))) return join(dist, 'index.js');
 		// Found cli.js but the signature check failed — dist layout changed.
-		console.warn('[harness] host entry detected but signature check failed:', arg);
 	}
-	return undefined;
 }
 
 let cachedHost: Promise<PiModule> | undefined;

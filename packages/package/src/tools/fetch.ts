@@ -1,5 +1,4 @@
 import type { Extension } from '@repo/shared/contract';
-import type { Static } from 'typebox';
 /** Fetch tool: single-URL GET. Output format `extract` (HTML and PDF → markdown; the default for HTML and PDF responses) or `raw` (the default for everything else — an explicit `extract` on other types is ignored). Binary images always become base64 image blocks; optional query params and save to a temp file. */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
@@ -133,12 +132,11 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 }
 
 const fetchOutputSchema = Type.Union([
-	Type.Object({ path: Type.String({ description: 'Temp file path (when saveToTemp)' }) }),
-	Type.Object({ content: Type.String({ description: 'Extracted markdown or raw text' }) }),
-	Type.Object({ image: Type.Object({ data: Type.String(), mimeType: Type.String() }) }),
+	Type.String({
+		description: 'Extracted markdown, raw text, or temp file path (when saveToTemp)',
+	}),
+	Type.Object({ data: Type.String(), mimeType: Type.String() }),
 ]);
-
-type FetchOutput = Static<typeof fetchOutputSchema>;
 
 // Extension that registers the `fetch` tool.
 export const toolFetch: Extension = (pi) => {
@@ -157,11 +155,7 @@ export const toolFetch: Extension = (pi) => {
 				try {
 					const out = await fetchUrl(params);
 					if (signal?.aborted) return text('aborted', true);
-					const structuredContent: FetchOutput = out.image
-						? { image: out.image }
-						: params.saveToTemp
-							? { path: out.content }
-							: { content: out.content };
+					const structuredContent = out.image ?? out.content;
 					if (out.image)
 						return {
 							content: [

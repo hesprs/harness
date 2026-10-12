@@ -170,8 +170,8 @@ const dirEntrySchema = Type.Union([
 
 const readOutputSchema = Type.Union([
 	Type.Object({ content: Type.String(), isError: Type.Optional(Type.Boolean()) }),
-	Type.Object({ image: Type.Object({ data: Type.String(), mimeType: Type.String() }) }),
-	Type.Object({ listing: Type.Array(dirEntrySchema) }),
+	Type.Object({ data: Type.String(), mimeType: Type.String() }),
+	Type.Array(dirEntrySchema),
 ]);
 
 export const toolRead: Extension = (pi) => {
@@ -199,10 +199,13 @@ export const toolRead: Extension = (pi) => {
 							} as const,
 						],
 						details: undefined,
-						structuredContent: result,
+						structuredContent: result.image,
 					};
 				if ('listing' in result)
-					return { ...text(formatListing(result.listing)), structuredContent: result };
+					return {
+						...text(formatListing(result.listing)),
+						structuredContent: result.listing,
+					};
 				return {
 					...text(result.content, result.isError === true),
 					structuredContent: result,
