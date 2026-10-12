@@ -165,6 +165,7 @@
 	],
 	"ignorePatterns": ["**/node_modules/**", "**/dist/**"],
 	"options": {
-		"typeAware": true
+		"typeAware": true,
+		"typeCheck": true
 	}
 }

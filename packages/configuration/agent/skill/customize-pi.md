@@ -1,6 +1,7 @@
 ---
 name: customize-pi
 description: Learn how to customize Pi harness. Use only when the leader explicitly asks about Pi itself, its SDK, extensions, themes, skills, or TUI.
+disable-model-invocation: true
 ---
 
 Use the following command to find Pi root:

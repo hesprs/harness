@@ -1,5 +1,5 @@
 /** Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named extension tool wins in Pi's tool registry). Matching first tries the exact substring, then a whitespace-less pass: every whitespace character is stripped from both sides. and a fuzzy match always replaces whole lines of real file text — never the query.
- * An ambiguous match is reported with 1-indexed line numbers instead of guessing; the top-level `replaceAll` opts into every occurrence instead. All edits in one call match the original content (not incrementally) and apply bottom-up. A bad edit never sinks the others: it is skipped and named in `failures`, while the matchable ones still land and are named in `applied`. */
+ * An ambiguous match is reported with 1-indexed line numbers instead of guessing; per-edit `replaceAll` opts into every occurrence instead. All edits in one call match the original content (not incrementally) and apply bottom-up. A bad edit never sinks the others: it is skipped and named in `failures`, while the matchable ones still land and are named in `applied`. */
 import type { Extension } from '@repo/shared/contract';
 import type { Static } from 'typebox';
 import { defineTool } from '@earendil-works/pi-coding-agent';
@@ -11,6 +11,7 @@ import { registerActive } from './common.ts';
 export type EditInput = {
 	newText: string;
 	oldText: string;
+	replaceAll?: boolean;
 };
 
 /** Whitespace-less, escape-agnostic normalization: every whitespace character vanishes. `indices[i]` is the source offset of chunk character `i`. */
@@ -119,7 +120,6 @@ export function diffSpans(before: string, spans: Array<Span>, context = 4): stri
 export function applyEdits(
 	content: string,
 	edits: Array<EditInput>,
-	replaceAll = false,
 ): {
 	applied: Array<number>;
 	content: string;
@@ -136,7 +136,7 @@ export function applyEdits(
 			continue;
 		}
 		const found = resolved.spans ?? [];
-		if (found.length > 1 && !replaceAll) {
+		if (found.length > 1 && !(edit.replaceAll === true)) {
 			problems.push({
 				index: i,
 				message: `edits[${i}]: oldText is ambiguous: matches at lines ${found
@@ -184,7 +184,6 @@ export function applyEdits(
 export async function editFile(
 	path: string,
 	edits: Array<EditInput>,
-	replaceAll = false,
 ): Promise<{ applied: Array<number>; diff?: string; failures: Array<string> }> {
 	// Bun.file().text() strips a leading BOM — decode with it kept.
 	const raw = new TextDecoder('utf-8', { ignoreBOM: true }).decode(await Bun.file(path).bytes());
@@ -192,7 +191,7 @@ export async function editFile(
 	const content = bom === '' ? raw : raw.slice(1);
 	const crlf = content.includes('\r\n');
 	const normalized = crlf ? content.replaceAll('\r\n', '\n') : content;
-	const applied = applyEdits(normalized, edits, replaceAll);
+	const applied = applyEdits(normalized, edits);
 	if (applied.applied.length) {
 		const finalText = crlf ? applied.content.replaceAll('\n', '\r\n') : applied.content;
 		await Bun.write(path, bom + finalText);
@@ -206,6 +205,9 @@ const editItemSchema = Type.Object({
 		description:
 			'Text to find. Whitespace, indentation, line breaks, and literal escapes may drift, but the text must be unique in the file unless replaceAll is set.',
 	}),
+	replaceAll: Type.Optional(
+		Type.Boolean({ description: 'Replace every occurrence instead of skipping as ambiguous.' }),
+	),
 });
 
 const editOutputSchema = Type.Object({
@@ -229,11 +231,7 @@ export const toolEdit: Extension = (pi) => {
 				'Edit a file by targeted text replacement. Each edit is matched against the original file, oldText should match file content. For ambiguous oldText (many matches), add surrounding context or set replaceAll. Use this and NEVER use Python or Bash to edit files.',
 			async execute(_toolCallId, params) {
 				try {
-					const outcome = await editFile(
-						params.path,
-						params.edits,
-						params.replaceAll === true,
-					);
+					const outcome = await editFile(params.path, params.edits);
 					const structuredContent: EditOutput = {
 						applied: outcome.applied,
 						...(outcome.diff ? { diff: outcome.diff } : {}),
@@ -241,7 +239,7 @@ export const toolEdit: Extension = (pi) => {
 					};
 					if (outcome.failures.length) {
 						const head = outcome.applied.length
-							? `applied ${outcome.applied.length}/${params.edits.length} edit(s) in ${params.path} (edits ${outcome.applied.join(', ')} are written to disk — do not redo them); skipped:`
+							? `applied ${outcome.applied.length}/${params.edits.length} edit(s) in ${params.path} (edits ${outcome.applied.join(', ')} are written to disk); skipped:`
 							: `no edits applied in ${params.path}:`;
 						return {
 							content: [
@@ -280,11 +278,6 @@ export const toolEdit: Extension = (pi) => {
 				path: Type.String({
 					description: 'Path to the file to edit (relative or absolute).',
 				}),
-				replaceAll: Type.Optional(
-					Type.Boolean({
-						description: 'Replace every occurrence instead of skipping as ambiguous.',
-					}),
-				),
 			}),
 			// Pi's built-in edit renderer draws its own shell (a padded box). Withoutmaximizable: true, this, Pi wraps the renderer's box in the generic tool box: box in box.
 			renderShell: 'self',

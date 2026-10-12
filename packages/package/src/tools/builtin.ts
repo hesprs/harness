@@ -31,7 +31,7 @@ export function toolCodemode(config?: CodemodeExtensionOptions): Extension {
 			if (PYTHON_INLINE_RE.test(event.input.command))
 				return {
 					block: true,
-					reason: 'Python inline script is inefficient. Use the `codemode` tool instead.',
+					reason: 'Python inline script is inefficient. Use the `codemode` tool and JavaScript logic.',
 				};
 		});
 	};

@@ -1,6 +1,7 @@
 ---
 name: make-plans
 description: Workflow to transform vague ideas into validated designs and stepped implementation plans. Use only when the leader instructs or other skill references explicitly.
+disable-model-invocation: true
 ---
 
 ## Core Mandate

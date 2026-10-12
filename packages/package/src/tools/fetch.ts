@@ -165,7 +165,10 @@ export const toolFetch: Extension = (pi) => {
 					if (out.image)
 						return {
 							content: [
-								{ text: '', type: 'text' } as const,
+								{
+									text: `Fetched image [${out.image.mimeType}]`,
+									type: 'text',
+								} as const,
 								{
 									data: out.image.data,
 									mimeType: out.image.mimeType,

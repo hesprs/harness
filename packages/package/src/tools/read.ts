@@ -1,6 +1,6 @@
+/** Read tool: raw file content with offset/limit pagination and Pi-style continuation hints; depth-1 directory listing as structured entries; PDF → markdown extraction; binary images as base64 image blocks. */
 import type { Extension } from '@repo/shared/contract';
-import { defineTool, formatSize } from '@earendil-works/pi-coding-agent';
-/** Read tool implementation: numbered file content with line range and regex filtering, directory listing (line count, size, or `folder`, optionally recursive), PDF → markdown extraction, binary images as base64 image blocks. */
+import { defineTool, formatSize, truncateHead } from '@earendil-works/pi-coding-agent';
 import { extractPagesMarkdown } from '@firecrawl/pdf-inspector';
 import { text } from '@repo/shared/text';
 import { Buffer } from 'node:buffer';
@@ -9,25 +9,22 @@ import { extname, join } from 'node:path';
 import { Type } from 'typebox';
 import { registerActive } from './common.ts';
 
-export type ReadResult = {
-	content: string;
-	/** Base64 image payload when the path is a binary image file. */
-	image?: { data: string; mimeType: string };
-	isError?: boolean;
-};
+/** One directory entry: a file (with byte size and optional line cnt for text files) or a folder (with direct child count). */
+export type DirEntry =
+	| { type: 'file'; name: string; size: number; lineCount?: number }
+	| { type: 'folder'; name: string; itemCount: number };
+
+export type ReadResult =
+	| { content: string; isError?: boolean }
+	| { image: { data: string; mimeType: string } }
+	| { listing: Array<DirEntry> };
 
 export type ReadOptions = {
-	/** First line to show, 1-based inclusive (files only). */
-	end?: number;
-	/** Regex pattern; only matching lines (files) or paths (directories) are shown. */
-	filter?: string;
-	/** List directory contents recursively (directories only). */
-	recursive?: boolean;
-	/** Last line to show, 1-based inclusive (files only). */
-	start?: number;
+	/** Line number to start reading from, 1-indexed (files only). */
+	offset?: number;
+	/** Maximum number of lines to read (files only). */
+	limit?: number;
 };
-
-export type ListOptions = Pick<ReadOptions, 'filter' | 'recursive'>;
 
 /** Extract a PDF buffer to markdown (all pages). */
 export function pdfToMarkdown(buffer: Buffer): string {
@@ -46,60 +43,84 @@ const IMAGE_MIME: Record<string, string> = {
 	'.webp': 'image/webp',
 };
 
-const compileFilter = (pattern: string | undefined): RegExp | undefined =>
-	pattern === undefined ? undefined : new RegExp(pattern, 'u');
-
-/** One directory entry: `path: folder`, `path: N lines, SIZE`, or `path: SIZE` (binary). */
-async function describeFile(absolute: string, shown: string): Promise<string> {
+/** Describe a single file as a `DirEntry` (reads bytes to determine text line count; binary files omit `lineCount`). */
+async function describeFile(absolute: string, name: string): Promise<DirEntry> {
 	const bytes = await Bun.file(absolute).bytes();
-	let decoded: string | undefined;
+	let lineCount: number | undefined;
 	if (!bytes.includes(0))
 		try {
-			decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+			const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+			lineCount = decoded === '' ? 0 : decoded.replace(/\n$/u, '').split('\n').length;
 		} catch {
-			decoded = undefined;
+			lineCount = undefined;
 		}
-
-	const size = formatSize(bytes.length);
-	if (decoded === undefined) return `${shown}: ${size}`;
-	const count = decoded === '' ? 0 : decoded.replace(/\n$/u, '').split('\n').length;
-	return `${shown}: ${count} lines, ${size}`;
+	return lineCount === undefined
+		? { name, size: bytes.length, type: 'file' }
+		: { lineCount, name, size: bytes.length, type: 'file' };
 }
 
-/** Directory listing: every child with its line count (when countable), size, or `folder` marker; nested paths when `recursive`. */
-export async function listDirectory(path: string, options: ListOptions = {}): Promise<string> {
-	const filter = compileFilter(options.filter);
-	const keep = (shown: string): boolean => filter === undefined || filter.test(shown);
-	const lines: Array<string> = [];
-	const walk = async (dir: string, prefix: string): Promise<void> => {
-		for (const entry of readdirSync(dir, { withFileTypes: true })) {
-			const shown = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-			if (entry.isDirectory()) {
-				if (keep(shown)) lines.push(`${shown}: folder`);
-				if (options.recursive === true) await walk(join(dir, entry.name), shown);
-			} else if (keep(shown)) lines.push(await describeFile(join(dir, entry.name), shown));
-		}
-	};
-	await walk(path, '');
-	return lines.join('\n');
+/** Depth-1 directory listing: every direct child as a structured `DirEntry`. */
+export async function listDirectory(path: string): Promise<Array<DirEntry>> {
+	const entries: Array<DirEntry> = [];
+	for (const entry of readdirSync(path, { withFileTypes: true }))
+		if (entry.isDirectory())
+			entries.push({
+				itemCount: readdirSync(join(path, entry.name)).length,
+				name: entry.name,
+				type: 'folder',
+			});
+		else entries.push(await describeFile(join(path, entry.name), entry.name));
+	return entries;
 }
 
-/** Number each line (`N line`, original numbering); `start`/`end` select a 1-based inclusive range and `filter` keeps only matching lines. */
-export function numberLines(content: string, options: ReadOptions = {}): string {
+/** Format directory entries as human-readable text: `name: N lines, SIZE`, `name: SIZE`, or `name: folder (N items)`. */
+export function formatListing(entries: Array<DirEntry>): string {
+	return entries
+		.map((entry) => {
+			if (entry.type === 'folder') return `${entry.name}: folder (${entry.itemCount} items)`;
+			if (entry.lineCount !== undefined)
+				return `${entry.name}: ${entry.lineCount} lines, ${formatSize(entry.size)}`;
+			return `${entry.name}: ${formatSize(entry.size)}`;
+		})
+		.join('\n');
+}
+
+/** Slice raw text by offset/limit, apply truncation, and append Pi-style continuation hints. */
+function paginate(content: string, options: ReadOptions = {}): string {
 	if (content === '') return '';
 	const lines = content.replace(/\n$/u, '').split('\n');
-	const filter = compileFilter(options.filter);
-	const out: Array<string> = [];
-	const start = Math.max(1, options.start ?? 1);
-	const end = Math.min(lines.length, Math.max(1, options.end ?? lines.length));
-	for (let i = start; i <= end; i++) {
-		const line = lines[i - 1] ?? '';
-		if (filter === undefined || filter.test(line)) out.push(`${i} ${line}`);
+	const totalLines = lines.length;
+	const startLine = options.offset ? Math.max(0, options.offset - 1) : 0;
+	if (startLine >= totalLines)
+		throw new Error(
+			`Offset ${options.offset} is beyond end of file (${totalLines} lines total)`,
+		);
+	const startDisplay = startLine + 1;
+	let selected: string;
+	let userLimit: number | undefined;
+	if (options.limit === undefined) selected = lines.slice(startLine).join('\n');
+	else {
+		const endLine = Math.min(startLine + options.limit, totalLines);
+		selected = lines.slice(startLine, endLine).join('\n');
+		userLimit = endLine - startLine;
 	}
-	return out.join('\n');
+	const trunc = truncateHead(selected);
+	if (trunc.firstLineExceedsLimit)
+		return `[Line ${startDisplay} is ${formatSize(Buffer.byteLength(lines[startLine] ?? '', 'utf8'))}, exceeds ${formatSize(trunc.maxBytes)} limit.]`;
+	let output = trunc.content;
+	if (trunc.truncated) {
+		const endDisplay = startDisplay + trunc.outputLines - 1;
+		const limitNote =
+			trunc.truncatedBy === 'bytes' ? ` (${formatSize(trunc.maxBytes)} limit)` : '';
+		output += `\n\n[Showing lines ${startDisplay}-${endDisplay} of ${totalLines}${limitNote}. Use offset=${endDisplay + 1} to continue.]`;
+	} else if (userLimit !== undefined && startLine + userLimit < totalLines) {
+		const remaining = totalLines - (startLine + userLimit);
+		output += `\n\n[${remaining} more lines in file. Use offset=${startLine + userLimit + 1} to continue.]`;
+	}
+	return output;
 }
 
-/** Read a file (numbered, ranged, filtered; PDFs are extracted to markdown first; binary images become base64 image blocks) or a directory (see listDirectory). */
+/** Read a file (raw content with offset/limit pagination; PDFs are extracted to markdown first; binary images become base64 image blocks) or a directory (depth-1 structured listing). */
 export async function readPath(path: string, options: ReadOptions = {}): Promise<ReadResult> {
 	let isDirectory: boolean;
 	try {
@@ -108,12 +129,11 @@ export async function readPath(path: string, options: ReadOptions = {}): Promise
 		return { content: `File not found: ${path}`, isError: true };
 	}
 	try {
-		if (isDirectory) return { content: await listDirectory(path, options) };
+		if (isDirectory) return { listing: await listDirectory(path) };
 		const ext = extname(path).toLowerCase();
 		if (ext in IMAGE_MIME) {
 			const mimeType = IMAGE_MIME[ext] as string;
 			return {
-				content: `Read image file [${mimeType}]`,
 				image: {
 					data: Buffer.from(await Bun.file(path).arrayBuffer()).toString('base64'),
 					mimeType,
@@ -124,7 +144,7 @@ export async function readPath(path: string, options: ReadOptions = {}): Promise
 			ext === '.pdf'
 				? pdfToMarkdown(Buffer.from(await Bun.file(path).arrayBuffer()))
 				: await Bun.file(path).text();
-		return { content: numberLines(raw, options) };
+		return { content: paginate(raw, options) };
 	} catch (error) {
 		return {
 			content: `${path}: ${error instanceof Error ? error.message : String(error)}`,
@@ -134,23 +154,44 @@ export async function readPath(path: string, options: ReadOptions = {}): Promise
 }
 
 // Extension that registers the `read` tool.
+const dirEntrySchema = Type.Union([
+	Type.Object({
+		lineCount: Type.Optional(Type.Number()),
+		name: Type.String(),
+		size: Type.Number(),
+		type: Type.Literal('file'),
+	}),
+	Type.Object({
+		itemCount: Type.Number(),
+		name: Type.String(),
+		type: Type.Literal('folder'),
+	}),
+]);
+
+const readOutputSchema = Type.Union([
+	Type.Object({ content: Type.String(), isError: Type.Optional(Type.Boolean()) }),
+	Type.Object({ image: Type.Object({ data: Type.String(), mimeType: Type.String() }) }),
+	Type.Object({ listing: Type.Array(dirEntrySchema) }),
+]);
+
 export const toolRead: Extension = (pi) => {
 	registerActive(
 		pi,
 		defineTool({
 			description:
-				'Read a file or a directory. Can read images; PDFs are extracted to markdown; reading directories lists files. Use this and NEVER use Bash to read files or list directories.',
+				'Read a file or a directory. Can read images; PDFs are extracted to markdown; reading directories lists contents. Use this and NEVER use Bash to read files or list directories.',
 			async execute(_toolCallId, params) {
 				const result = await readPath(params.path, {
-					end: params.end,
-					filter: params.filter,
-					recursive: params.recursive,
-					start: params.start,
+					limit: params.limit,
+					offset: params.offset,
 				});
-				if (result.image)
+				if ('image' in result)
 					return {
 						content: [
-							{ text: result.content, type: 'text' } as const,
+							{
+								text: `Read image file [${result.image.mimeType}]`,
+								type: 'text',
+							} as const,
 							{
 								data: result.image.data,
 								mimeType: result.image.mimeType,
@@ -158,34 +199,30 @@ export const toolRead: Extension = (pi) => {
 							} as const,
 						],
 						details: undefined,
+						structuredContent: result,
 					};
-				return text(result.content, result.isError === true);
+				if ('listing' in result)
+					return { ...text(formatListing(result.listing)), structuredContent: result };
+				return {
+					...text(result.content, result.isError === true),
+					structuredContent: result,
+				};
 			},
 			label: 'Read',
 			name: 'read',
+			outputSchema: readOutputSchema,
 			parameters: Type.Object({
-				end: Type.Optional(
+				limit: Type.Optional(
 					Type.Number({
-						description: 'Last line to show, 1-based inclusive (files only)',
+						description: 'Maximum number of lines to read (files only)',
 					}),
 				),
-				filter: Type.Optional(
-					Type.String({
-						description:
-							'Regex pattern; only matching lines (files) or paths (directories) are shown',
+				offset: Type.Optional(
+					Type.Number({
+						description: 'Line number to start reading from, 1-indexed (files only)',
 					}),
 				),
 				path: Type.String({ description: 'File or directory path' }),
-				recursive: Type.Optional(
-					Type.Boolean({
-						description: 'List directory contents recursively (directories only)',
-					}),
-				),
-				start: Type.Optional(
-					Type.Number({
-						description: 'First line to show, 1-based inclusive (files only)',
-					}),
-				),
 			}),
 		}),
 	);

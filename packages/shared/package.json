@@ -11,6 +11,6 @@
 	},
 	"scripts": {
 		"fix": "oxlint --silent --fix && oxfmt",
-		"check": "tsc && oxlint && oxfmt --check"
+		"check": "oxlint && oxfmt --check"
 	}
 }

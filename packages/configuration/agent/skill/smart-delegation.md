@@ -1,6 +1,7 @@
 ---
 name: smart-delegation
 description: Guidelines to help you to work smartly by spawning child agents. Must use for huge work where decomposition is beneficial.
+disable-model-invocation: true
 ---
 
 ## 1. Evaluation

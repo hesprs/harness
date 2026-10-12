@@ -1,6 +1,7 @@
 ---
 name: audit-plan
 description: Review a plan before implementation. Use only when the leader instructs or other skill references explicitly.
+disable-model-invocation: true
 ---
 
 # Audit Plan

@@ -1,6 +1,7 @@
 ---
 name: interview-leader
 description: Clarify leader intents by asking questions. Use only when the leader instructs or other skill references explicitly.
+disable-model-invocation: true
 ---
 
 - Deep dive into the implementation of the described feature / refactor, discover every un-described decision that makes difference. Ask the leader for clarification.

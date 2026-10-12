@@ -31,13 +31,15 @@ test('ambiguous oldText is skipped with line numbers', () => {
 });
 
 test('replaceAll replaces every occurrence', () => {
-	const result = applyEdits('x\nm\nx\n', [{ newText: 'y', oldText: 'x' }], true);
+	const result = applyEdits('x\nm\nx\n', [{ newText: 'y', oldText: 'x', replaceAll: true }]);
 	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('y\nm\ny\n');
 });
 
 test('replaceAll replaces every occurrence of a fuzzy match', () => {
-	const result = applyEdits('\tx\n\ty\nm\n\tx\n\ty\n', [{ newText: 'z', oldText: 'x\ny' }], true);
+	const result = applyEdits('\tx\n\ty\nm\n\tx\n\ty\n', [
+		{ newText: 'z', oldText: 'x\ny', replaceAll: true },
+	]);
 	expect(result.failures).toEqual([]);
 	expect(result.content).toBe('z\nm\nz\n');
 });

@@ -25,7 +25,6 @@ const [workerPrompt, globalPrompt] = await Promise.all([
 ]);
 
 defineBaseAgent({
-	extensions: [skill(p('./skill/customize-pi.md'))],
 	model: 'zai/glm-5.3',
 	prompt: globalPrompt,
 	thinking: 'high',
@@ -46,12 +45,7 @@ defineAgent({
 		// toolApplyPatch,
 		toolFind,
 		toolGrep,
-		skill([
-			p('./skill/manage-pty.md'),
-			p('./skill/write-code.md'),
-			p('./skill/write-tests.md'),
-			p('./skill/query-docs'),
-		]),
+		skill(p('./skill')),
 	],
 	name: 'worker',
 	prompt: workerPrompt,

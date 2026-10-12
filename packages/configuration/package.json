@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"fix": "oxlint --silent --fix && oxfmt",
-		"check": "tsc && oxlint && oxfmt --check"
+		"check": "oxlint && oxfmt --check"
 	},
 	"devDependencies": {
 		"@hesprs/harness": "workspace:*"
