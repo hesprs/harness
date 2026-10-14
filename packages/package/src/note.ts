@@ -1,9 +1,8 @@
 import type { Extension, TalkableInfoEvent } from '@repo/shared/contract';
 import { kernel, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** The personal note: a per-session markdown file inside the application session folder. Its path goes into a persisted system prompt section (reminding this agent) and into its talkable-info event (manifesting this session to other agents). The content is cached at `before_agent_start` time because both event handlers must mutate synchronously — no file IO in the dispatch path. */
+/** The personal note: a per-session markdown file inside the application session folder. Its path goes into a persisted system prompt section (reminding this agent) and into its talkable-info event (manifesting this session to other agents). The content is cached at `before_agent_start` time; the talkable-info handler mutates synchronously using the cache. */
 const personalNote: Extension = (pi) => {
 	let notePath: string | undefined;
 	/** Cached note content, refreshed at the start of each turn. */
@@ -18,11 +17,12 @@ const personalNote: Extension = (pi) => {
 			: join(binding.appFolder, `${binding.sessionId}.md`);
 	};
 
-	pi.on('before_agent_start', (event, ctx) => {
+	pi.on('before_agent_start', async (event, ctx) => {
 		notePath ??= resolve(ctx);
 		if (notePath === undefined) return;
-		if (!existsSync(notePath)) writeFileSync(notePath, '');
-		note = readFileSync(notePath, 'utf8');
+		const file = Bun.file(notePath);
+		if (!(await file.exists())) await Bun.write(notePath, '');
+		note = await Bun.file(notePath).text();
 		const canEdit = pi
 			.getActiveTools()
 			.some((tool) => tool === 'write' || tool === 'edit' || tool === 'apply_patch');

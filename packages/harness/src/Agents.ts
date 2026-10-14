@@ -6,7 +6,6 @@ import type {
 	Extension,
 	NamedAgentArgs,
 } from '@repo/shared/contract';
-import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -98,12 +97,12 @@ const stateFile = () => join(homedir(), '.pi', 'agent', 'harness-state.json');
 /** Import existing configs into the registry. cwd config requires project trust. */
 async function importConfigs(cwd: string, includeCwd: boolean): Promise<void> {
 	const user = join(homedir(), '.pi', 'agent', 'harness.config.ts');
-	if (existsSync(user)) {
+	if (await Bun.file(user).exists()) {
 		registry.setScope('user');
 		await import(Bun.pathToFileURL(user).href);
 	}
 	const local = join(cwd, 'harness.config.ts');
-	if (includeCwd && existsSync(local)) {
+	if (includeCwd && (await Bun.file(local).exists())) {
 		registry.setScope('cwd');
 		await import(Bun.pathToFileURL(local).href);
 	}

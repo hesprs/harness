@@ -18,7 +18,7 @@ test('fetchUrl raw returns the response body', async () => {
 		fetch: () => new Response('plain body', { headers: { 'content-type': 'text/plain' } }),
 	});
 	const out = await fetchUrl({ format: 'raw', url: server.url.toString() });
-	expect(out.content).toBe('plain body');
+	expect(out.value).toBe('plain body');
 });
 
 test('fetchUrl extract converts HTML pages to markdown', async () => {
@@ -26,8 +26,8 @@ test('fetchUrl extract converts HTML pages to markdown', async () => {
 		fetch: () => new Response(HTML, { headers: { 'content-type': 'text/html' } }),
 	});
 	const out = await fetchUrl({ url: `${server.url}article` });
-	expect(out.content).toContain('Article Title');
-	expect(out.content).not.toContain('navigation junk');
+	expect(out.value).toContain('Article Title');
+	expect(out.value).not.toContain('navigation junk');
 });
 
 test('fetchUrl extract converts PDF responses to markdown', async () => {
@@ -38,20 +38,12 @@ test('fetchUrl extract converts PDF responses to markdown', async () => {
 			}),
 	});
 	const out = await fetchUrl({ url: `${server.url}doc.pdf` });
-	expect(out.content.toLowerCase()).toContain('fetched');
-});
-
-test('fetchUrl appends query params', async () => {
-	using server = Bun.serve({
-		fetch: (req) => new Response(new URL(req.url).searchParams.get('q') ?? ''),
-	});
-	const out = await fetchUrl({ params: { q: 'needle' }, url: server.url.toString() });
-	expect(out.content).toBe('needle');
+	expect((out.value as string).toLowerCase()).toContain('fetched');
 });
 
 test('fetchUrl saveToTemp writes bytes to a temp file and returns its path', async () => {
 	using server = Bun.serve({ fetch: () => new Response('saved content') });
-	const { content: path } = await fetchUrl({ saveToTemp: true, url: server.url.toString() });
+	const { value: path } = await fetchUrl({ saveToTemp: true, url: server.url.toString() }) as { type: 'text'; value: string };
 	expect(path).not.toContain('saved content');
 	expect(await Bun.file(path).text()).toBe('saved content');
 });
@@ -60,7 +52,7 @@ test('fetchUrl saveToTemp saves the extracted output, not raw bytes', async () =
 	using server = Bun.serve({
 		fetch: () => new Response(HTML, { headers: { 'content-type': 'text/html' } }),
 	});
-	const { content: path } = await fetchUrl({ saveToTemp: true, url: server.url.toString() });
+	const { value: path } = await fetchUrl({ saveToTemp: true, url: server.url.toString() }) as { type: 'text'; value: string };
 	const content = await Bun.file(path).text();
 	expect(content).toContain('Article Title');
 	expect(content).not.toContain('<html>');
@@ -71,11 +63,11 @@ test('fetchUrl raw + saveToTemp preserves the exact byte stream', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response(bytes, { headers: { 'content-type': 'application/pdf' } }),
 	});
-	const { content: path } = await fetchUrl({
+	const { value: path } = await fetchUrl({
 		format: 'raw',
 		saveToTemp: true,
 		url: server.url.toString(),
-	});
+	}) as { type: 'text'; value: string };
 	expect(new Uint8Array(await Bun.file(path).arrayBuffer())).toEqual(bytes);
 });
 
@@ -84,11 +76,11 @@ test('fetchUrl raw + saveToTemp preserves the exact byte stream', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response(bytes, { headers: { 'content-type': 'application/pdf' } }),
 	});
-	const { content: path } = await fetchUrl({
+	const { value: path } = await fetchUrl({
 		format: 'raw',
 		saveToTemp: true,
 		url: server.url.toString(),
-	});
+	}) as { type: 'text'; value: string };
 	expect(path.endsWith('.pdf')).toBe(true); // MIME-derived extension
 	expect(new Uint8Array(await Bun.file(path).arrayBuffer())).toEqual(bytes);
 });
@@ -105,18 +97,18 @@ test('fetchUrl save-to-file extensions: mime, magic bytes, and markdown', async 
 		port: 0,
 	});
 	// URL extension when the MIME type is generic.
-	const { content: fromUrl } = await fetchUrl({
+	const { value: fromUrl } = (await fetchUrl({
 		format: 'raw',
 		saveToTemp: true,
 		url: `${server.url}doc.html`,
-	});
+	})) as { type: 'text'; value: string };
 	expect(fromUrl.endsWith('.html')).toBe(true);
 	// Extension-less URL: magic bytes decide.
-	const { content: sniffed } = await fetchUrl({
+	const { value: sniffed } = (await fetchUrl({
 		format: 'raw',
 		saveToTemp: true,
 		url: `${server.url}file`,
-	});
+	})) as { type: 'text'; value: string };
 	expect(sniffed.endsWith('.pdf')).toBe(true);
 
 	// Non-extractable content saves raw bytes with a content-type extension.
@@ -124,7 +116,7 @@ test('fetchUrl save-to-file extensions: mime, magic bytes, and markdown', async 
 		fetch: () => new Response('plain', { headers: { 'content-type': 'text/plain' } }),
 		port: 0,
 	});
-	const { content: txt } = await fetchUrl({ saveToTemp: true, url: text.url.toString() });
+	const { value: txt } = (await fetchUrl({ saveToTemp: true, url: text.url.toString() }) as { type: 'text'; value: string });
 	expect(txt.endsWith('.txt')).toBe(true);
 });
 
@@ -134,17 +126,17 @@ test('fetchUrl defaults to raw for non-HTML/PDF content and ignores `extract`', 
 	});
 	// Default format on JSON is raw, so the temp file keeps the JSON extension.
 	const def = await fetchUrl({ saveToTemp: true, url: server.url.toString() });
-	expect(def.content.endsWith('.json')).toBe(true);
+	expect((def.value as string).endsWith('.json')).toBe(true);
 	// Explicit `extract` on JSON is ignored — still raw.
 	const forced = await fetchUrl({
 		format: 'extract',
 		saveToTemp: true,
 		url: server.url.toString(),
 	});
-	expect(forced.content.endsWith('.json')).toBe(true);
+	expect((forced.value as string).endsWith('.json')).toBe(true);
 	// Raw output returns the body as-is.
 	const inline = await fetchUrl({ url: server.url.toString() });
-	expect(inline.content).toBe('{"a":1}');
+	expect(inline.value as string).toBe('{"a":1}');
 });
 
 test('fetchUrl returns XML responses as raw text, not markdown', async () => {
@@ -155,7 +147,7 @@ test('fetchUrl returns XML responses as raw text, not markdown', async () => {
 			}),
 	});
 	const out = await fetchUrl({ format: 'extract', url: server.url.toString() });
-	expect(out.content).toBe('<root><a>1</a></root>');
+	expect(out.value).toBe('<root><a>1</a></root>');
 });
 
 test('fetchUrl returns binary images as base64 image payloads, not text', async () => {
@@ -167,10 +159,10 @@ test('fetchUrl returns binary images as base64 image payloads, not text', async 
 	using server = Bun.serve({
 		fetch: () => new Response(png, { headers: { 'content-type': 'image/png' } }),
 	});
-	const out = await fetchUrl({ url: `${server.url}pixel.png` });
-	expect(out.image?.mimeType).toBe('image/png');
-	expect(out.image?.data).toBe(png.toString('base64'));
-	expect(out.content).not.toContain('\u0000');
+	const out = (await fetchUrl({ url: `${server.url}pixel.png` })) as { type: 'image'; value: { data: string; mimeType: string } };
+	expect(out.type).toBe('image');
+	expect(out.value.mimeType).toBe('image/png');
+	expect(out.value.data).toBe(png.toString('base64'));
 });
 
 test('fetchUrl rejects on HTTP error status', async () => {

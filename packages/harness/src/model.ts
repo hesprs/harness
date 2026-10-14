@@ -1,5 +1,5 @@
 /** Persistence model (pure): the application-session folder + meta.json and session records. No state; all mutation happens through the Sessions module (single writer by construction). Relationships and talkable-agent semantics live in the Controller; handoff in ./patch.ts. */
-import { existsSync, readdirSync, renameSync } from 'node:fs';
+import { readdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -57,18 +57,26 @@ export async function persistMeta(meta: AppMeta): Promise<void> {
 	const metaPath = join(meta.appFolder, 'meta.json');
 	const tmp = `${metaPath}.${crypto.randomUUID().slice(0, 8)}.tmp`;
 	await Bun.write(tmp, JSON.stringify(meta, undefined, '\t'));
-	renameSync(tmp, metaPath);
+	await rename(tmp, metaPath);
 }
 
 /** All application-session folders under root, newest first. */
 export async function listAppSessions(root: string): Promise<Array<AppMeta>> {
-	if (!existsSync(root)) return [];
-	const metas: Array<AppMeta> = [];
-	for (const entry of readdirSync(root)) {
-		const metaPath = join(root, entry, 'meta.json');
-		if (!existsSync(metaPath)) continue;
-		metas.push(JSON.parse(await Bun.file(metaPath).text()) as AppMeta);
+	let entries: Array<string>;
+	try {
+		entries = await readdir(root);
+	} catch {
+		return [];
 	}
+	const metas = (
+		await Promise.all(
+			entries.map(async (entry) => {
+				const metaPath = join(root, entry, 'meta.json');
+				if (!(await Bun.file(metaPath).exists())) return;
+				return JSON.parse(await Bun.file(metaPath).text()) as AppMeta;
+			}),
+		)
+	).filter((m): m is AppMeta => m !== undefined);
 	metas.sort((a, b) => b.appSessionId.localeCompare(a.appSessionId));
 	return metas;
 }

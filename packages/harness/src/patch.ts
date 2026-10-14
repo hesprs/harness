@@ -7,7 +7,6 @@ import type { AgentSession } from '@earendil-works/pi-coding-agent';
  * - Rejoin: shifting back to a still-streaming session replays the UI triggers that fired while nobody was subscribed — the working indicator (agent_start on the session bus) and the streaming message component (rebuilt lazily from the next event that carries the message) — so the in-flight turn renders as if it was never left.
  * Handoff state lives on globalThis: pi loads extension modules without a module cache, so every extension instance gets a fresh copy of this module. */
 import { AssistantMessageComponent } from '@earendil-works/pi-coding-agent';
-import { existsSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { LiveSession } from '@/Sessions.ts';
@@ -15,12 +14,13 @@ import type { LiveSession } from '@/Sessions.ts';
 type PiModule = typeof import('@earendil-works/pi-coding-agent');
 
 /** The host's dist/index.js, if this process was started as `pi`. The nix wrapper invokes bun as `bun --bun <dist>/cli.js`, so the entry may sit at any argv position. */
-function hostEntry(): string | undefined {
+async function hostEntry(): Promise<string | undefined> {
 	for (const arg of process.argv.slice(1)) {
 		if (basename(arg) !== 'cli.js') continue;
 		const dist = dirname(arg);
 		// Signature check: pi's dist ships these side by side.
-		if (existsSync(join(dist, 'core', 'agent-session.js'))) return join(dist, 'index.js');
+		if (await Bun.file(join(dist, 'core', 'agent-session.js')).exists())
+			return join(dist, 'index.js');
 		// Found cli.js but the signature check failed — dist layout changed.
 	}
 }
@@ -29,8 +29,8 @@ let cachedHost: Promise<PiModule> | undefined;
 
 /** The host's live Pi module (or the ordinary import outside a Pi process). */
 export function hostPi(): Promise<PiModule> {
-	cachedHost ??= (() => {
-		const entry = hostEntry();
+	cachedHost ??= (async () => {
+		const entry = await hostEntry();
 		if (entry === undefined) return import('@earendil-works/pi-coding-agent');
 		// oxlint-disable-next-line no-new-func typescript/no-implied-eval : must bypass jiti/bun specifier resolution to reach the host's module registry
 		const nativeImport = new Function('s', 'return import(s)') as (

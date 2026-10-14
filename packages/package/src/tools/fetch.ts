@@ -12,7 +12,6 @@ export type FetchOptions = {
 	url: string;
 	/** Output format. Defaults to `extract` for HTML and PDF responses, `raw` for everything else; an explicit `extract` on other types is ignored. */
 	format?: 'extract' | 'raw';
-	params?: Record<string, string>;
 	/** Save the output (extracted markdown or raw bytes) to a temp file and return its path. */
 	saveToTemp?: boolean;
 };
@@ -83,18 +82,13 @@ async function saveTemp(data: string | Uint8Array, ext: string): Promise<string>
 	return path;
 }
 
-export type FetchResult = {
-	content: string;
-	/** Base64 image payload when the response is a binary image. */
-	image?: { data: string; mimeType: string };
-	isError?: boolean;
-};
+export type FetchResult =
+	| { type: 'image'; value: { data: string; mimeType: string } }
+	| { type: 'text'; value: string };
 
 /** Fetch one URL. `format` defaults to `extract` for HTML and PDF responses and `raw` otherwise; an explicit `extract` on any other type is ignored (raw). `extract` output is markdown (HTML and PDF only); `raw` returns the response body as-is. Binary images (bmp/gif/jpeg/png/webp) always become base64 image attachments regardless of format. `saveToTemp` writes the output to a temp file and returns its path — `.md` for extracted output, otherwise the raw bytes with an extension derived from the content type (URL path and magic bytes as fallbacks). */
 export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	const url = new URL(opts.url);
-	for (const [key, value] of Object.entries(opts.params ?? {})) url.searchParams.set(key, value);
-
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
 
@@ -105,10 +99,10 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	if (IMAGE_MIME.has(mime)) {
 		const bytes = new Uint8Array(await response.arrayBuffer());
 		if (opts.saveToTemp)
-			return { content: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
+			return { type: 'text', value: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
 		return {
-			content: '',
-			image: { data: Buffer.from(bytes).toString('base64'), mimeType: mime },
+			type: 'image',
+			value: { data: Buffer.from(bytes).toString('base64'), mimeType: mime },
 		};
 	}
 
@@ -121,22 +115,15 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 			mime.includes('pdf') || url.pathname.endsWith('.pdf')
 				? pdfToMarkdown(Buffer.from(await response.arrayBuffer()))
 				: await extractHtml(await response.text(), url.toString());
-		return { content: opts.saveToTemp ? await saveTemp(out, '.md') : out };
+		return { type: 'text', value: opts.saveToTemp ? await saveTemp(out, '.md') : out };
 	}
 	// Raw: save preserves the exact byte stream (binary included).
 	if (opts.saveToTemp) {
 		const bytes = new Uint8Array(await response.arrayBuffer());
-		return { content: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
+		return { type: 'text', value: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
 	}
-	return { content: await response.text() };
+	return { type: 'text', value: await response.text() };
 }
-
-const fetchOutputSchema = Type.Union([
-	Type.String({
-		description: 'Extracted markdown, raw text, or temp file path (when saveToTemp)',
-	}),
-	Type.Object({ data: Type.String(), mimeType: Type.String() }),
-]);
 
 // Extension that registers the `fetch` tool.
 export const toolFetch: Extension = (pi) => {
@@ -144,45 +131,36 @@ export const toolFetch: Extension = (pi) => {
 		description:
 			'Output format. `extract`: to markdown; default for HTML and PDF, ignored on other types. `raw`: response body as-is.',
 	});
-	const stringRecord = Type.Record(Type.String(), Type.String(), {
-		description: 'Optional query params set on the URL.',
-	});
 	registerActive(
 		pi,
 		defineTool({
 			description: 'Fetch a single URL with GET. Can fetch images.',
 			async execute(_toolCallId, params, signal) {
 				try {
-					const out = await fetchUrl(params);
+					const { type, value } = await fetchUrl(params);
 					if (signal?.aborted) return text('aborted', true);
-					const structuredContent = out.image ?? out.content;
-					if (out.image)
+					if (type === 'image')
 						return {
 							content: [
-								{
-									text: `Fetched image [${out.image.mimeType}]`,
-									type: 'text',
-								} as const,
-								{
-									data: out.image.data,
-									mimeType: out.image.mimeType,
-									type: 'image',
-								} as const,
+								{ text: `Fetched image [${value.mimeType}]`, type: 'text' } as const,
+								{ data: value.data, mimeType: value.mimeType, type: 'image' } as const,
 							],
 							details: undefined,
-							structuredContent,
+							structuredContent: value.data,
 						};
-					return { ...text(out.content), structuredContent };
+					return { ...text(value), structuredContent: value };
 				} catch (error) {
 					return text(errText(error), true);
 				}
 			},
 			label: 'Fetch',
 			name: 'fetch',
-			outputSchema: fetchOutputSchema,
+			outputSchema: Type.String({
+				description:
+					'Extracted markdown (extract) / raw text (raw) / base64 image (image file) / temp file path (saveToTemp)',
+			}),
 			parameters: Type.Object({
 				format: Type.Optional(formats),
-				params: Type.Optional(stringRecord),
 				saveToTemp: Type.Optional(
 					Type.Boolean({
 						description: 'Save the output to a temp file and return its path.',

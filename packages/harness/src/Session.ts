@@ -11,7 +11,8 @@ import { defineTool, getMarkdownTheme } from '@earendil-works/pi-coding-agent';
 import { Markdown } from '@earendil-works/pi-tui';
 import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
-import { existsSync, renameSync, watch } from 'node:fs';
+import { watch } from 'node:fs';
+import { rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Type } from 'typebox';
 import type { LiveSession } from '@/Sessions';
@@ -29,16 +30,16 @@ const fmt = new Intl.DateTimeFormat('en-US', {
 });
 
 /** Move the session's record file into the app session folder. pi allocated the file in the default sessions dir; entries may already be flushed, so rename first, then re-point the manager (it loads the history back). */
-function relocateRecord(
+async function relocateRecord(
 	sessionManager: {
 		getSessionFile: () => string | undefined;
 		setSessionFile: (file: string) => void;
 	},
 	target: string,
-): void {
+): Promise<void> {
 	const from = sessionManager.getSessionFile();
 	if (from === undefined || from === target) return;
-	if (existsSync(from)) renameSync(from, target);
+	if (await Bun.file(from).exists()) await rename(from, target);
 	sessionManager.setSessionFile(target);
 }
 
@@ -104,7 +105,7 @@ export default class Session {
 						await this.kernel.beginAppSession(appSessionsRoot(ctx.cwd));
 					// Locate the fresh session's record inside the app session before Its first turn; pi allocated the file in the default sessions dir.
 					const record = this.kernel.provisionPending(this.agent);
-					relocateRecord(
+					await relocateRecord(
 						ctx.sessionManager as typeof ctx.sessionManager & {
 							setSessionFile: (file: string) => void;
 						},
@@ -225,7 +226,7 @@ export default class Session {
 		this.topicContent = '';
 		if (topic === undefined) return;
 		await this.readTopic(topic);
-		if (!existsSync(topic)) return;
+		if (!(await Bun.file(topic).exists())) return;
 		this.topicWatcher = watch(topic, { persistent: false }, () => {
 			void this.readTopic(topic);
 		});

@@ -4,22 +4,22 @@ import { defineTool, formatSize, truncateHead } from '@earendil-works/pi-coding-
 import { extractPagesMarkdown } from '@firecrawl/pdf-inspector';
 import { text } from '@repo/shared/text';
 import { Buffer } from 'node:buffer';
-import { readdirSync, statSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { Type } from 'typebox';
 import { registerActive } from './common.ts';
 
 /** One directory entry: a file (with byte size and optional line cnt for text files) or a folder (with direct child count). */
-export type DirEntry =
+type DirEntry =
 	| { type: 'file'; name: string; size: number; lineCount?: number }
 	| { type: 'folder'; name: string; itemCount: number };
 
 export type ReadResult =
-	| { content: string; isError?: boolean }
-	| { image: { data: string; mimeType: string } }
-	| { listing: Array<DirEntry> };
+	| { type: 'image'; value: { data: string; mimeType: string } }
+	| { type: 'text' | 'error'; value: string }
+	| { type: 'listing'; value: Array<DirEntry> };
 
-export type ReadOptions = {
+type ReadOptions = {
 	/** Line number to start reading from, 1-indexed (files only). */
 	offset?: number;
 	/** Maximum number of lines to read (files only). */
@@ -59,18 +59,18 @@ async function describeFile(absolute: string, name: string): Promise<DirEntry> {
 		: { lineCount, name, size: bytes.length, type: 'file' };
 }
 
-/** Depth-1 directory listing: every direct child as a structured `DirEntry`. */
-export async function listDirectory(path: string): Promise<Array<DirEntry>> {
-	const entries: Array<DirEntry> = [];
-	for (const entry of readdirSync(path, { withFileTypes: true }))
-		if (entry.isDirectory())
-			entries.push({
-				itemCount: readdirSync(join(path, entry.name)).length,
-				name: entry.name,
-				type: 'folder',
-			});
-		else entries.push(await describeFile(join(path, entry.name), entry.name));
-	return entries;
+/** Depth-1 directory listing: every direct child as a structured `DirEntry` (file descriptions and folder counts run in parallel). */
+async function listDirectory(path: string): Promise<Array<DirEntry>> {
+	const dirents = await readdir(path, { withFileTypes: true });
+	return Promise.all(
+		dirents.map(async (entry) => {
+			if (entry.isDirectory()) {
+				const children = await readdir(join(path, entry.name));
+				return { itemCount: children.length, name: entry.name, type: 'folder' };
+			}
+			return describeFile(join(path, entry.name), entry.name);
+		}),
+	);
 }
 
 /** Format directory entries as human-readable text: `name: N lines, SIZE`, `name: SIZE`, or `name: folder (N items)`. */
@@ -124,17 +124,18 @@ function paginate(content: string, options: ReadOptions = {}): string {
 export async function readPath(path: string, options: ReadOptions = {}): Promise<ReadResult> {
 	let isDirectory: boolean;
 	try {
-		isDirectory = statSync(path).isDirectory();
+		isDirectory = (await stat(path)).isDirectory();
 	} catch {
-		return { content: `File not found: ${path}`, isError: true };
+		return { type: 'error', value: `File not found: ${path}` };
 	}
 	try {
-		if (isDirectory) return { listing: await listDirectory(path) };
+		if (isDirectory) return { type: 'listing', value: await listDirectory(path) };
 		const ext = extname(path).toLowerCase();
 		if (ext in IMAGE_MIME) {
 			const mimeType = IMAGE_MIME[ext] as string;
 			return {
-				image: {
+				type: 'image',
+				value: {
 					data: Buffer.from(await Bun.file(path).arrayBuffer()).toString('base64'),
 					mimeType,
 				},
@@ -144,76 +145,78 @@ export async function readPath(path: string, options: ReadOptions = {}): Promise
 			ext === '.pdf'
 				? pdfToMarkdown(Buffer.from(await Bun.file(path).arrayBuffer()))
 				: await Bun.file(path).text();
-		return { content: paginate(raw, options) };
+		return { type: 'text', value: paginate(raw, options) };
 	} catch (error) {
 		return {
-			content: `${path}: ${error instanceof Error ? error.message : String(error)}`,
-			isError: true,
+			type: 'error',
+			value: `${path}: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
 }
 
 // Extension that registers the `read` tool.
-const dirEntrySchema = Type.Union([
-	Type.Object({
-		lineCount: Type.Optional(Type.Number()),
-		name: Type.String(),
-		size: Type.Number(),
-		type: Type.Literal('file'),
-	}),
-	Type.Object({
-		itemCount: Type.Number(),
-		name: Type.String(),
-		type: Type.Literal('folder'),
-	}),
-]);
-
-const readOutputSchema = Type.Union([
-	Type.Object({ content: Type.String(), isError: Type.Optional(Type.Boolean()) }),
-	Type.Object({ data: Type.String(), mimeType: Type.String() }),
-	Type.Array(dirEntrySchema),
-]);
+const dirEntrySchema = Type.Union(
+	[
+		Type.Object({
+			lineCount: Type.Optional(Type.Number()),
+			name: Type.String(),
+			size: Type.Number(),
+			type: Type.Literal('file'),
+		}),
+		Type.Object({
+			itemCount: Type.Number(),
+			name: Type.String(),
+			type: Type.Literal('folder'),
+		}),
+	],
+	{ description: 'structured directory listing (directories)' },
+);
 
 export const toolRead: Extension = (pi) => {
 	registerActive(
 		pi,
 		defineTool({
 			description:
-				'Read a file or a directory. Can read images; PDFs are extracted to markdown; reading directories lists contents. Use this and NEVER use Bash to read files or list directories.',
+				'Read a file or a directory. Can read images; PDFs are extracted to markdown; reading directories lists contents.',
 			async execute(_toolCallId, params) {
 				const result = await readPath(params.path, {
 					limit: params.limit,
 					offset: params.offset,
 				});
-				if ('image' in result)
+				if (result.type === 'image')
 					return {
 						content: [
 							{
-								text: `Read image file [${result.image.mimeType}]`,
+								text: `Read image file [${result.value.mimeType}]`,
 								type: 'text',
 							} as const,
 							{
-								data: result.image.data,
-								mimeType: result.image.mimeType,
+								data: result.value.data,
+								mimeType: result.value.mimeType,
 								type: 'image',
 							} as const,
 						],
 						details: undefined,
-						structuredContent: result.image,
+						structuredContent: result.value.data,
 					};
-				if ('listing' in result)
+				if (result.type === 'listing')
 					return {
-						...text(formatListing(result.listing)),
-						structuredContent: result.listing,
+						...text(formatListing(result.value)),
+						structuredContent: result.value,
 					};
 				return {
-					...text(result.content, result.isError === true),
-					structuredContent: result,
+					...text(result.value, result.type === 'error'),
+					structuredContent: result.value,
 				};
 			},
 			label: 'Read',
 			name: 'read',
-			outputSchema: readOutputSchema,
+			outputSchema: Type.Union([
+				Type.String({
+					description: 'Raw file content (files) / base64 image (image files)',
+				}),
+				Type.Array(dirEntrySchema),
+			]),
 			parameters: Type.Object({
 				limit: Type.Optional(
 					Type.Number({

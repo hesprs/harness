@@ -1,5 +1,5 @@
 import { LEADER_ID } from '@repo/shared/contract';
-import { existsSync, watch } from 'node:fs';
+import { watch } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { AppMeta, SessionRecord } from '@/model';
@@ -195,10 +195,13 @@ export default class Sessions {
 				const name = file ?? undefined;
 				if (event !== 'rename' || name === undefined) return;
 				const fire = handlers.get(name);
-				if (fire !== undefined && !existsSync(join(dir, name))) {
-					handlers.delete(name);
-					fire();
-				}
+				if (fire !== undefined)
+					void (async () => {
+						if (!(await Bun.file(join(dir, name)).exists())) {
+							handlers.delete(name);
+							fire();
+						}
+					})();
 			});
 			handlers.set(basename(abs), onGone);
 			this.trackedDirs.set(dir, { close: () => watcher.close(), handlers });
