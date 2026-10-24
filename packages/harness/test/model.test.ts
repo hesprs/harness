@@ -1,8 +1,3 @@
-import { test, expect } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { AppMeta, SessionRecord } from '@/model';
 import {
 	createAppSession,
 	listAppSessions,
@@ -11,6 +6,11 @@ import {
 	registerSession,
 	topicCascade,
 } from '@/model';
+import { test, expect } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { AppMeta, SessionRecord } from '@/model';
 
 function tmpRoot(): string {
 	return mkdtempSync(join(tmpdir(), 'harness-model-'));

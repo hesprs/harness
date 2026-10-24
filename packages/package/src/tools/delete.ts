@@ -1,10 +1,12 @@
-import type { Extension } from '@repo/shared/contract';
-/** Delete tool: removes a file. The harness watches session record and topic files on its own and reacts to their deletion — this tool knows nothing about sessions. */
+/**
+ * Delete tool: removes a file. The harness watches session record and topic files on its own and
+ * reacts to their deletion — this tool knows nothing about sessions.
+ */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { unlink } from 'node:fs/promises';
 import { Type } from 'typebox';
-import { registerActive } from './common.ts';
+import type { Extension } from '@repo/shared/contract';
 
 export async function deletePath(path: string): Promise<string> {
 	if (!(await Bun.file(path).exists())) throw new Error(`file not found: ${path}`);
@@ -14,8 +16,7 @@ export async function deletePath(path: string): Promise<string> {
 
 // Extension that registers the `delete` tool.
 export const toolDelete: Extension = (pi) => {
-	registerActive(
-		pi,
+	pi.registerTool(
 		defineTool({
 			description: 'Delete a file or folder.',
 			async execute(_toolCallId, params) {

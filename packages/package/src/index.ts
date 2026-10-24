@@ -1,6 +1,10 @@
-/** The publishable package. `harness.config.ts` imports these to declare agents and compose agent extensions. Agent registration routes through the framework kernel on globalThis (see `@repo/shared/contract`) so all module copies share one registry. */
-import type { BaseAgentArgs, NamedAgentArgs } from '@repo/shared/contract';
 import { kernel } from '@repo/shared/contract';
+/**
+ * The publishable package. `harness.config.ts` imports these to declare agents and compose agent
+ * extensions. Agent registration routes through the framework kernel on globalThis (see
+ * `@repo/shared/contract`) so all module copies share one registry.
+ */
+import type { BaseAgentArgs, NamedAgentArgs } from '@repo/shared/contract';
 
 // Define extensions that all agents share
 export function defineBaseAgent(args: BaseAgentArgs): void {

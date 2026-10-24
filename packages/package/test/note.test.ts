@@ -1,11 +1,11 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import type { KernelContract } from '@repo/shared/contract';
+import personalNote from '@/note';
 import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import personalNote from '@/note';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { KernelContract } from '@repo/shared/contract';
 
 /** Capturing pi stub: handlers and event listeners are invocable. */
 function makePi(tools: Array<string> = ['write']) {

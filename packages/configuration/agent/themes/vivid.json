@@ -85,9 +85,5 @@
 
 		"bashMode": "orange"
 	},
-	"export": {
-		"pageBg": "#18181A",
-		"cardBg": "#232326",
-		"infoBg": "#2e2a1e"
-	}
+	"export": { "pageBg": "#18181A", "cardBg": "#232326", "infoBg": "#2e2a1e" }
 }

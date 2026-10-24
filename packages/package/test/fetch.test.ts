@@ -1,6 +1,6 @@
-import { test, expect } from 'bun:test';
-import { extractHtml, fetchUrl } from '@/tools/fetch.ts';
 import { makePdf } from './utils';
+import { extractHtml, fetchUrl } from '@/tools/fetch.ts';
+import { test, expect } from 'bun:test';
 
 const HTML = `<!doctype html><html><head><title>Test Page</title></head>
 <body><main><article><h1>Article Title</h1><p>Some <a href="/sub">linked</a> paragraph.</p></article></main>
@@ -43,7 +43,10 @@ test('fetchUrl extract converts PDF responses to markdown', async () => {
 
 test('fetchUrl saveToTemp writes bytes to a temp file and returns its path', async () => {
 	using server = Bun.serve({ fetch: () => new Response('saved content') });
-	const { value: path } = await fetchUrl({ saveToTemp: true, url: server.url.toString() }) as { type: 'text'; value: string };
+	const { value: path } = (await fetchUrl({ saveToTemp: true, url: server.url.toString() })) as {
+		type: 'text';
+		value: string;
+	};
 	expect(path).not.toContain('saved content');
 	expect(await Bun.file(path).text()).toBe('saved content');
 });
@@ -52,7 +55,10 @@ test('fetchUrl saveToTemp saves the extracted output, not raw bytes', async () =
 	using server = Bun.serve({
 		fetch: () => new Response(HTML, { headers: { 'content-type': 'text/html' } }),
 	});
-	const { value: path } = await fetchUrl({ saveToTemp: true, url: server.url.toString() }) as { type: 'text'; value: string };
+	const { value: path } = (await fetchUrl({ saveToTemp: true, url: server.url.toString() })) as {
+		type: 'text';
+		value: string;
+	};
 	const content = await Bun.file(path).text();
 	expect(content).toContain('Article Title');
 	expect(content).not.toContain('<html>');
@@ -63,11 +69,11 @@ test('fetchUrl raw + saveToTemp preserves the exact byte stream', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response(bytes, { headers: { 'content-type': 'application/pdf' } }),
 	});
-	const { value: path } = await fetchUrl({
+	const { value: path } = (await fetchUrl({
 		format: 'raw',
 		saveToTemp: true,
 		url: server.url.toString(),
-	}) as { type: 'text'; value: string };
+	})) as { type: 'text'; value: string };
 	expect(new Uint8Array(await Bun.file(path).arrayBuffer())).toEqual(bytes);
 });
 
@@ -76,11 +82,11 @@ test('fetchUrl raw + saveToTemp preserves the exact byte stream', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response(bytes, { headers: { 'content-type': 'application/pdf' } }),
 	});
-	const { value: path } = await fetchUrl({
+	const { value: path } = (await fetchUrl({
 		format: 'raw',
 		saveToTemp: true,
 		url: server.url.toString(),
-	}) as { type: 'text'; value: string };
+	})) as { type: 'text'; value: string };
 	expect(path.endsWith('.pdf')).toBe(true); // MIME-derived extension
 	expect(new Uint8Array(await Bun.file(path).arrayBuffer())).toEqual(bytes);
 });
@@ -116,7 +122,10 @@ test('fetchUrl save-to-file extensions: mime, magic bytes, and markdown', async 
 		fetch: () => new Response('plain', { headers: { 'content-type': 'text/plain' } }),
 		port: 0,
 	});
-	const { value: txt } = (await fetchUrl({ saveToTemp: true, url: text.url.toString() }) as { type: 'text'; value: string });
+	const { value: txt } = (await fetchUrl({ saveToTemp: true, url: text.url.toString() })) as {
+		type: 'text';
+		value: string;
+	};
 	expect(txt.endsWith('.txt')).toBe(true);
 });
 
@@ -159,7 +168,10 @@ test('fetchUrl returns binary images as base64 image payloads, not text', async 
 	using server = Bun.serve({
 		fetch: () => new Response(png, { headers: { 'content-type': 'image/png' } }),
 	});
-	const out = (await fetchUrl({ url: `${server.url}pixel.png` })) as { type: 'image'; value: { data: string; mimeType: string } };
+	const out = (await fetchUrl({ url: `${server.url}pixel.png` })) as {
+		type: 'image';
+		value: { data: string; mimeType: string };
+	};
 	expect(out.type).toBe('image');
 	expect(out.value.mimeType).toBe('image/png');
 	expect(out.value.data).toBe(png.toString('base64'));

@@ -1,12 +1,5 @@
-import type { Kernel } from '@';
-import type {
-	BeforeAgentStartEvent,
-	ExtensionAPI,
-	ExtensionContext,
-	InputEvent,
-} from '@earendil-works/pi-coding-agent';
-import type { TalkableInfoEvent } from '@repo/shared/contract';
-import type { FSWatcher } from 'node:fs';
+import { encodeTalk, formatTalkNotice } from '@/Controller';
+import { appSessionsRoot } from '@/model';
 import { defineTool, getMarkdownTheme } from '@earendil-works/pi-coding-agent';
 import { Markdown } from '@earendil-works/pi-tui';
 import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
@@ -15,21 +8,29 @@ import { watch } from 'node:fs';
 import { rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Type } from 'typebox';
+import type { Kernel } from '@';
 import type { LiveSession } from '@/Sessions';
-import { encodeTalk, formatTalkNotice } from '@/Controller';
-import { appSessionsRoot } from '@/model';
+import type {
+	BeforeAgentStartEvent,
+	ExtensionAPI,
+	ExtensionContext,
+	InputEvent,
+	ToolDefinition,
+} from '@earendil-works/pi-coding-agent';
+import type { TalkableInfoEvent } from '@repo/shared/contract';
+import type { FSWatcher } from 'node:fs';
 
 const TALK_DESCRIPTION = `Send an message to another agent. Other agents communicate to you using this tool, you MUST communicate using this tool also; plain output is meaningless and NOT delivered to anyone. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop after talking without further tool calls; any incoming talks will wake you up when you have stopped.`;
 
 const WORKING_STYLE = `You are an AI agent working with autonomy. You complete your tasks with high quality, and communicate with other agents smartly.`;
 
-const fmt = new Intl.DateTimeFormat('en-US', {
-	day: 'numeric',
-	month: 'short',
-	year: 'numeric',
-});
+const fmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** Move the session's record file into the app session folder. pi allocated the file in the default sessions dir; entries may already be flushed, so rename first, then re-point the manager (it loads the history back). */
+/**
+ * Move the session's record file into the app session folder. pi allocated the file in the default
+ * sessions dir; entries may already be flushed, so rename first, then re-point the manager (it
+ * loads the history back).
+ */
 async function relocateRecord(
 	sessionManager: {
 		getSessionFile: () => string | undefined;
@@ -43,7 +44,13 @@ async function relocateRecord(
 	sessionManager.setSessionFile(target);
 }
 
-/** One instance per agent session (the interactive one that runs the viewed agent natively, and every background SDK session). Owns everything session-local: identity binding, the agent definition application, prompt construction, the talk tool, talk delivery into this session, and the talkable-info event. Background live sessions attach here so the viewed and background cases keep no abstraction difference. */
+/**
+ * One instance per agent session (the interactive one that runs the viewed agent natively, and
+ * every background SDK session). Owns everything session-local: identity binding, the agent
+ * definition application, prompt construction, the talk tool, talk delivery into this session, and
+ * the talkable-info event. Background live sessions attach here so the viewed and background cases
+ * keep no abstraction difference.
+ */
 export default class Session {
 	/** Agent name ('' = no configs: the session stays Pi-native). */
 	agent = '';
@@ -146,7 +153,27 @@ export default class Session {
 	private async apply(ctx: Pick<ExtensionContext, 'modelRegistry'>): Promise<void> {
 		this.pi.setActiveTools(['talk']);
 		const { extensions, thinking, model } = this.kernel.get(this.agent) ?? {};
-		for (const ext of extensions ?? []) await ext(this.pi);
+		/*
+		 * Pi activates a tool on registration only while its name is new to the registry. Factories
+		 * re-run after the reset above would therefore leave their tools inactive: activate what this
+		 * apply registers, declaring it the way registration would.
+		 */
+		const registered: Array<ToolDefinition> = [];
+		const register = this.pi.registerTool;
+		this.pi.registerTool = ((tool: ToolDefinition) => {
+			registered.push(tool);
+			register.call(this.pi, tool);
+		}) as ExtensionAPI['registerTool'];
+		try {
+			for (const ext of extensions ?? []) await ext(this.pi);
+		} finally {
+			this.pi.registerTool = register;
+		}
+		const declared = registered
+			.filter((tool) => tool.defaultActive !== false)
+			.filter((tool) => ['direct', 'model-only'].includes(tool.exposure ?? 'direct'))
+			.map((tool) => tool.name);
+		if (declared.length > 0) this.pi.setActiveTools([...this.pi.getActiveTools(), ...declared]);
 		if (model?.includes('/') ?? false) {
 			const [provider, ...id] = (model as string).split('/');
 			// oxlint-disable-next-line unicorn/no-array-method-this-argument : false positive
@@ -183,7 +210,10 @@ export default class Session {
 		ctx.ui.setStatus('harness', label);
 	}
 
-	/** The system prompt: identity and instructions as preamble; topic and talkables as persisted, diffed sections. */
+	/**
+	 * The system prompt: identity and instructions as preamble; topic and talkables as persisted,
+	 * diffed sections.
+	 */
 	private async beginTurn(
 		event: BeforeAgentStartEvent,
 		ctx: ExtensionContext,
@@ -276,7 +306,10 @@ export default class Session {
 					message: Type.String({ description: 'Message content' }),
 					to: Type.String({ description: 'Target session ID' }),
 				}),
-				/** Show the sent message in the tool result — the human sees what was said, once per talk, instead of a replaceable status notification. */
+				/**
+				 * Show the sent message in the tool result — the human sees what was said, once per
+				 * talk, instead of a replaceable status notification.
+				 */
 				renderResult: (result, _options, _theme, context) =>
 					new Markdown(
 						context.isError
@@ -290,7 +323,11 @@ export default class Session {
 		);
 	}
 
-	/** Deliver a talk into this session: background sessions through their live handle (steered mid-generation, prompted when idle), the viewed session through the controller's own conversation. */
+	/**
+	 * Deliver a talk into this session: background sessions through their live handle (steered
+	 * mid-generation, prompted when idle), the viewed session through the controller's own
+	 * conversation.
+	 */
 	deliver(from: string, rel: string, message: string): void {
 		if (this.live !== undefined) {
 			const notice = formatTalkNotice(from, rel, message);
@@ -305,7 +342,10 @@ export default class Session {
 		});
 	}
 
-	/** The session's talkable manifest content, dispatched on this session's own event bus; handlers must mutate synchronously. */
+	/**
+	 * The session's talkable manifest content, dispatched on this session's own event bus; handlers
+	 * must mutate synchronously.
+	 */
 	info(base: string): string {
 		const event: TalkableInfoEvent = { text: base };
 		if (this.sessionId !== undefined)

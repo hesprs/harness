@@ -1,10 +1,16 @@
-/** Spawn tool: creates colleague/child agent sessions through the in-process controller operations. The spawning agent must supply the new session's starting prompt — delivered as the spawner's first talk to the new agent, kicking off its first turn the way a human user's opening prompt starts a session. A catalog of the allowed spawnable agents (descriptions resolved from the global agent registry) is appended to the agent's system instruction so it knows what it can spawn. */
-import type { Extension } from '@repo/shared/contract';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { kernel, LEADER_ID } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
-import { registerActive } from './common.ts';
+/**
+ * Spawn tool: creates colleague/child agent sessions through the in-process controller operations.
+ * The spawning agent must supply the new session's starting prompt — delivered as the spawner's
+ * first talk to the new agent, kicking off its first turn the way a human user's opening prompt
+ * starts a session. A catalog of the allowed spawnable agents (descriptions resolved from the
+ * global agent registry) is appended to the agent's system instruction so it knows what it can
+ * spawn.
+ */
+import type { Extension } from '@repo/shared/contract';
 
 /** Catalog of the allowed agents. Descriptions come from the kernel registry. */
 function spawnCatalog(agents: Array<string>): string {
@@ -26,8 +32,7 @@ export default function toolSpawn(agents: Array<string>): Extension {
 			if (catalog === '') return;
 			return { systemPrompt: `${event.systemPrompt}\n\n${catalog}` };
 		});
-		registerActive(
-			pi,
+		pi.registerTool(
 			defineTool({
 				description:
 					'Spawn a new agent session and start it with a prompt, like a human user prompting an agent to start a session. Returns the session ID and record file path. Optionally choose a markdown topic context file.',

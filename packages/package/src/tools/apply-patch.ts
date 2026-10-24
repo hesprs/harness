@@ -1,15 +1,16 @@
-import type { Extension } from '@repo/shared/contract';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
-/** Apply_patch: Codex-style patch envelopes (Add/Update/Delete/Move) applied to the filesystem. Ported from code-yeongyu/pi-apply-patch (parser, chunk seeking with fuzzy fallback, application); TUI preview omitted. */
+/**
+ * Apply_patch: Codex-style patch envelopes (Add/Update/Delete/Move) applied to the filesystem.
+ * Ported from code-yeongyu/pi-apply-patch (parser, chunk seeking with fuzzy fallback, application);
+ * TUI preview omitted.
+ */
 import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from 'typebox';
-import { activate } from './common.ts';
+import type { Extension } from '@repo/shared/contract';
 
-export type PatchResult = {
-	summary: string;
-};
+export type PatchResult = { summary: string };
 
 type ParsedPatch =
 	| { type: 'add'; filePath: string; content: string }
@@ -442,5 +443,4 @@ export const toolApplyPatch: Extension = (pi) => {
 			freeform: { definition: LARK_GRAMMAR, syntax: 'lark', type: 'grammar' },
 		}),
 	);
-	activate(pi, 'apply_patch');
 };

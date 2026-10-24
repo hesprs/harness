@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import Controller, { decodeTalk, encodeTalk, formatTalkNotice, relationship } from '@/Controller';
+import { createAppSession, registerSession } from '@/model';
+import { announceAdoption, ensureStreamingComponent } from '@/patch';
+import Sessions from '@/Sessions';
 import {
 	createAgentSession,
 	createAgentSessionFromServices,
@@ -15,10 +18,7 @@ import { join } from 'node:path';
 import type { AppMeta, SessionRecord } from '@/model';
 import type { TuiInternals } from '@/patch';
 import type Session from '@/Session';
-import Controller, { decodeTalk, encodeTalk, formatTalkNotice, relationship } from '@/Controller';
-import { createAppSession, registerSession } from '@/model';
-import { announceAdoption, ensureStreamingComponent } from '@/patch';
-import Sessions from '@/Sessions';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
 const agentDir = join(homedir(), '.pi', 'agent');
 
@@ -56,13 +56,7 @@ function makePi() {
 			renderers.set(type, render);
 		},
 	};
-	return {
-		appended,
-		commands,
-		entryRenderers,
-		pi: pi as unknown as ExtensionAPI,
-		renderers,
-	};
+	return { appended, commands, entryRenderers, pi: pi as unknown as ExtensionAPI, renderers };
 }
 
 /** Theme stand-in: identity foreground. */
@@ -414,10 +408,7 @@ test('switchSession hosts a live session offered for adoption', async () => {
 		const runtime = await createAgentSessionRuntime(
 			async ({ sessionManager }) => {
 				factoryRuns++;
-				const services = await createAgentSessionServices({
-					agentDir,
-					cwd: process.cwd(),
-				});
+				const services = await createAgentSessionServices({ agentDir, cwd: process.cwd() });
 				return {
 					...(await createAgentSessionFromServices({ services, sessionManager })),
 					diagnostics: [],

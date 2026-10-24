@@ -1,8 +1,8 @@
+import { applyPatch } from '@/tools/apply-patch.ts';
 import { test, expect } from 'bun:test';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyPatch } from '@/tools/apply-patch.ts';
 
 function tmpRoot(): string {
 	return mkdtempSync(join(tmpdir(), 'harness-patch-'));

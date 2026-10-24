@@ -1,8 +1,8 @@
+import { tmpRoot } from './utils';
+import { applyEdits, editFile } from '@/tools/edit.ts';
 import { test, expect } from 'bun:test';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { applyEdits, editFile } from '@/tools/edit.ts';
-import { tmpRoot } from './utils';
 
 test('exact match replaces', () => {
 	const result = applyEdits('a\nb\nc\n', [{ newText: 'B', oldText: 'b' }]);

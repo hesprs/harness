@@ -368,11 +368,7 @@ export async function cmdUpdate(options: CommandOptions & { root: string }): Pro
 
 export function parseArgs(argv: Array<string>): { command: string; options: CommandOptions } {
 	const [command, ...rest] = argv;
-	const options: CommandOptions = {
-		exception: [],
-		exclude: [],
-		include: [],
-	};
+	const options: CommandOptions = { exception: [], exclude: [], include: [] };
 
 	for (let i = 0; i < rest.length; i++) {
 		const arg = rest[i];

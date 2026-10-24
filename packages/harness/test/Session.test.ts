@@ -1,12 +1,15 @@
-import type { Kernel } from '@';
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import Session from '@/Session';
+import { defineTool } from '@earendil-works/pi-coding-agent';
 import { LEADER_ID, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Type } from 'typebox';
+import type { Kernel } from '@';
 import type { LiveSession } from '@/Sessions';
-import Session from '@/Session';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import type { Extension } from '@repo/shared/contract';
 
 /** Capturing ExtensionAPI stub: registered handlers and tools are invocable. */
 function makePi() {
@@ -14,6 +17,8 @@ function makePi() {
 	const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
 	const tools = new Map<string, { execute: (id: string, params: unknown) => Promise<unknown> }>();
 	const eventListeners = new Map<string, Array<(data: unknown) => void>>();
+	let active = ['talk'];
+	const seen = new Set<string>();
 	const pi = {
 		events: {
 			emit: (channel: string, data: unknown) => {
@@ -26,7 +31,7 @@ function makePi() {
 				eventListeners.set(channel, list);
 			},
 		},
-		getActiveTools: () => ['talk'],
+		getActiveTools: () => active,
 		on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
 			const list = handlers.get(event) ?? [];
 			list.push(handler);
@@ -36,10 +41,18 @@ function makePi() {
 		registerEntryRenderer: () => {},
 		registerMessageRenderer: () => {},
 		registerTool: (tool: {
+			defaultActive?: boolean;
+			exposure?: string;
 			name: string;
 			execute: (id: string, params: unknown) => Promise<unknown>;
 		}) => {
 			tools.set(tool.name, tool);
+			// Pi activates a registered tool only while its name is new to the registry.
+			if (seen.has(tool.name)) return;
+			seen.add(tool.name);
+			const exposure = tool.exposure ?? 'direct';
+			if (tool.defaultActive === false) return;
+			if (exposure === 'direct' || exposure === 'model-only') active = [...active, tool.name];
 		},
 		sendMessage: (message: unknown, options: unknown) => {
 			calls.push({ kind: 'sendMessage', value: { message, options } });
@@ -47,6 +60,7 @@ function makePi() {
 		},
 		setActiveTools: (names: Array<string>) => {
 			calls.push({ kind: 'setActiveTools', value: names });
+			active = names;
 		},
 		setModel: (model: unknown) => {
 			calls.push({ kind: 'setModel', value: model });
@@ -57,6 +71,7 @@ function makePi() {
 		},
 	};
 	return {
+		active: () => active,
 		calls,
 		fire: (event: string, ev: unknown, ctx: unknown) =>
 			Promise.all((handlers.get(event) ?? []).map((h) => h(ev, ctx))),
@@ -174,6 +189,47 @@ test('session_start applies the agent definition: talk-only tools, extensions, m
 	expect(made.calls).toContainEqual({ kind: 'setActiveTools', value: ['talk'] });
 	expect(made.calls).toContainEqual({ kind: 'setModel', value: { id: 'glm-test' } });
 	expect(made.calls).toContainEqual({ kind: 'setThinkingLevel', value: 'high' });
+});
+
+test('shifting back to an agent re-activates the tools its extensions registered', async () => {
+	const tool =
+		(name: string): Extension =>
+		(pi) => {
+			pi.registerTool(
+				defineTool({
+					description: name,
+					async execute() {
+						return { content: [{ text: name, type: 'text' }], details: undefined };
+					},
+					label: name,
+					name,
+					parameters: Type.Object({}),
+				}),
+			);
+		};
+	let current = 'first';
+	const made = makeSession({
+		bindByFile: () =>
+			Promise.resolve({
+				agent: current,
+				appFolder: '/app/1',
+				recordPath: '/app/1/worker-abcde.jsonl',
+				sessionId: 'worker-abcde',
+			}),
+		get: (agent: string) => ({
+			description: 'd',
+			extensions: [tool(`${agent}-tool`)],
+			prompts: [],
+		}),
+	});
+	const { ctx } = makeCtx();
+	await made.fire('session_start', { type: 'session_start' }, ctx);
+	current = 'second';
+	await made.fire('session_start', { type: 'session_start' }, ctx);
+	expect(made.active()).toContain('second-tool');
+	current = 'first';
+	await made.fire('session_start', { type: 'session_start' }, ctx);
+	expect(made.active()).toEqual(expect.arrayContaining(['first-tool']));
 });
 
 test('session_start of a background session binds the spawner-registered identity', async () => {

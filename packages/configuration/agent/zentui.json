@@ -1,16 +1,7 @@
 {
-	"colorSources": {
-		"starship": "terminal",
-		"editor": "terminal",
-		"userMessages": "terminal"
-	},
-	"features": {
-		"statusLine": true,
-		"editor": true
-	},
-	"fixedEditor": {
-		"enabled": false
-	},
+	"colorSources": { "starship": "terminal", "editor": "terminal", "userMessages": "terminal" },
+	"features": { "statusLine": true, "editor": true },
+	"fixedEditor": { "enabled": false },
 	"components": {
 		"editor": {
 			"enabled": true,
@@ -28,11 +19,7 @@
 					"metadataFormat": "$model  $provider(  $thinking)",
 					"completionMenu": "palette"
 				},
-				"accent-rail": {
-					"rail": "▎",
-					"asciiRail": "|",
-					"transparent": false
-				},
+				"accent-rail": { "rail": "▎", "asciiRail": "|", "transparent": false },
 				"minimalist": {
 					"pathDisplay": "compact",
 					"contextFormat": "percent-total",
@@ -41,10 +28,7 @@
 					"showTimer": false,
 					"showCost": false,
 					"showGit": false,
-					"contextThresholds": {
-						"warning": 70,
-						"error": 90
-					}
+					"contextThresholds": { "warning": 70, "error": 90 }
 				}
 			}
 		},
@@ -52,12 +36,7 @@
 			"enabled": true,
 			"style": "labeled",
 			"colorSource": "theme",
-			"styles": {
-				"framed": {},
-				"framed-copy-friendly": {},
-				"compact": {},
-				"labeled": {}
-			}
+			"styles": { "framed": {}, "framed-copy-friendly": {}, "compact": {}, "labeled": {} }
 		},
 		"workingLine": {
 			"enabled": true,
@@ -89,18 +68,9 @@
 					"Blanching…"
 				]
 			},
-			"segments": {
-				"tool": true,
-				"elapsed": true,
-				"thought": true,
-				"tokens": true
-			}
+			"segments": { "tool": true, "elapsed": true, "thought": true, "tokens": true }
 		},
-		"selectorBorders": {
-			"enabled": true,
-			"style": "zentui",
-			"colorSource": "theme"
-		},
+		"selectorBorders": { "enabled": true, "style": "zentui", "colorSource": "theme" },
 		"footer": {
 			"style": "starship",
 			"colorSource": "theme",
@@ -113,14 +83,8 @@
 					"compactMaxLines": 2,
 					"separator": "pipe",
 					"contextStyle": "text",
-					"contextThresholds": {
-						"warning": 70,
-						"error": 90
-					},
-					"pathDisplay": {
-						"mode": "basename",
-						"depth": 0
-					},
+					"contextThresholds": { "warning": 70, "error": 90 },
+					"pathDisplay": { "mode": "basename", "depth": 0 },
 					"segments": {
 						"cwd": false,
 						"sessionName": false,
@@ -140,30 +104,17 @@
 						"os": true,
 						"packageVersion": false
 					},
-					"gitBranch": {
-						"maxLength": "full"
-					},
-					"gitCommit": {
-						"hashLength": 7,
-						"onlyDetached": true,
-						"showTag": true
-					},
-					"gitMetrics": {
-						"onlyNonzero": true,
-						"ignoreSubmodules": false
-					},
+					"gitBranch": { "maxLength": "full" },
+					"gitCommit": { "hashLength": 7, "onlyDetached": true, "showTag": true },
+					"gitMetrics": { "onlyNonzero": true, "ignoreSubmodules": false },
 					"extensionStatuses": {
 						"defaultPlacement": "right",
 						"placements": {},
-						"colorModes": {
-							"harness": "zentui"
-						}
+						"colorModes": { "harness": "zentui" }
 					}
 				}
 			}
 		}
 	},
-	"icons": {
-		"mode": "auto"
-	}
+	"icons": { "mode": "auto" }
 }

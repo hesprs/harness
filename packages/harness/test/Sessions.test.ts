@@ -1,3 +1,5 @@
+import { createAppSession, registerSession } from '@/model';
+import Sessions from '@/Sessions';
 import { LEADER_ID } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -7,8 +9,6 @@ import { join } from 'node:path';
 import type { AppMeta, SessionRecord } from '@/model';
 import type Session from '@/Session';
 import type { LiveSession } from '@/Sessions';
-import { createAppSession, registerSession } from '@/model';
-import Sessions from '@/Sessions';
 
 function tmpRoot(): string {
 	return mkdtempSync(join(tmpdir(), 'harness-sessions-'));
@@ -61,10 +61,7 @@ test('registerViewing creates the record, viewing and binding', async () => {
 		const sessions = new Sessions();
 		sessions.root.armPending('coder');
 		await sessions.root.beginAppSession(root);
-		const binding = sessions.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-		});
+		const binding = sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		expect(binding.agent).toBe('coder');
 		expect(binding.sessionId).toMatch(/^coder-[a-z0-9]{5}$/u);
 		const meta = sessions.root.meta();
@@ -107,10 +104,7 @@ test('bindByFile binds a record from any app session under the root', async () =
 	try {
 		const first = new Sessions();
 		await first.root.beginAppSession(root);
-		const created = first.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-		});
+		const created = first.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		// The fire-and-forget persist must land before another instance can Discover the record from disk.
 		await until(
 			async () =>
@@ -135,10 +129,7 @@ test('captureFirstMessage records the first message once', async () => {
 	try {
 		const sessions = new Sessions();
 		await sessions.root.beginAppSession(root);
-		sessions.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-		});
+		sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		sessions.root.captureFirstMessage('first line\nmore');
 		sessions.root.captureFirstMessage('second message');
 		expect(sessions.root.meta().firstMessage).toBe('first line');
@@ -192,10 +183,7 @@ test('deleting a record file aborts the session and removes the note file', asyn
 	try {
 		const sessions = new Sessions();
 		await sessions.root.beginAppSession(root);
-		const binding = sessions.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-		});
+		const binding = sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		const { session } = fakeSession();
 		sessions.root.bindSession(binding.sessionId, session);
 		sessions.root.putLive(binding.sessionId, stubLive(actions));
@@ -221,11 +209,7 @@ test('deleting a topic file aborts every session in the topic', async () => {
 		await sessions.root.beginAppSession(root);
 		const topic = join(sessions.root.appFolder() ?? '', 'topic.md');
 		await Bun.write(topic, '# topic');
-		const first = sessions.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-			topic,
-		});
+		const first = sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1', topic });
 		const second = sessions.root.registerViewing({
 			agent: 'coder',
 			piSessionId: 'pi-2',
@@ -260,10 +244,7 @@ test('reset disposes live sessions and clears all state', async () => {
 		const { session } = fakeSession();
 		sessions.root.bindSession('A', session);
 		sessions.root.putLive('A', stubLive(actions));
-		sessions.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-		});
+		sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		sessions.root.reset();
 		expect(sessions.root.appFolder()).toBeUndefined();
 		expect(sessions.root.viewing()).toBeUndefined();
@@ -291,10 +272,7 @@ test('provisionPending locates the record inside the app folder; registerViewing
 		// Arming clears the provision: the next one mints a fresh record.
 		sessions.root.armPending('coder');
 		expect(sessions.root.provisionPending('coder').sessionId).not.toBe(record.sessionId);
-		const binding = sessions.root.registerViewing({
-			agent: 'coder',
-			piSessionId: 'pi-1',
-		});
+		const binding = sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		expect(binding.sessionId).not.toBe(record.sessionId);
 		expect(existsSync(binding.recordPath)).toBe(false); // Registration does not create the file
 	} finally {

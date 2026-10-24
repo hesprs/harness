@@ -106,11 +106,11 @@ A high-performance, low-latency agent orchestration plugin for OpenCode, focusin
 
 ## Directory Map (Aggregated)
 
-| Directory       | Responsibility Summary                                                            | Detailed Map                        |
-| --------------- | --------------------------------------------------------------------------------- | ----------------------------------- |
-| `src/agents/`   | Defines agent personalities (Orchestrator, Explorer) and manages model routing.   | [View Map](src/agents/codemap.md)   |
-| `src/features/` | Core logic for tmux integration and session state.                                | [View Map](src/features/codemap.md) |
-| `src/config/`   | Implements the configuration loading pipeline and environment variable injection. | [View Map](src/config/codemap.md)   |
+| Directory | Responsibility Summary | Detailed Map |
+| --- | --- | --- |
+| `src/agents/` | Defines agent personalities (Orchestrator, Explorer) and manages model routing. | [View Map](src/agents/codemap.md) |
+| `src/features/` | Core logic for tmux integration and session state. | [View Map](src/features/codemap.md) |
+| `src/config/` | Implements the configuration loading pipeline and environment variable injection. | [View Map](src/config/codemap.md) |
 ```
 
 ### Step 5: Register Codemap in AGENTS.md

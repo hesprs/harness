@@ -1,16 +1,23 @@
-import type { Extension } from '@repo/shared/contract';
-/** Fetch tool: single-URL GET. Output format `extract` (HTML and PDF → markdown; the default for HTML and PDF responses) or `raw` (the default for everything else — an explicit `extract` on other types is ignored). Binary images always become base64 image blocks; optional query params and save to a temp file. */
+import { pdfToMarkdown } from './read.ts';
+/**
+ * Fetch tool: single-URL GET. Output format `extract` (HTML and PDF → markdown; the default for
+ * HTML and PDF responses) or `raw` (the default for everything else — an explicit `extract` on
+ * other types is ignored). Binary images always become base64 image blocks; optional query params
+ * and save to a temp file.
+ */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { Defuddle } from 'defuddle/node';
 import { Buffer } from 'node:buffer';
 import { Type } from 'typebox';
-import { registerActive } from './common.ts';
-import { pdfToMarkdown } from './read.ts';
+import type { Extension } from '@repo/shared/contract';
 
 export type FetchOptions = {
 	url: string;
-	/** Output format. Defaults to `extract` for HTML and PDF responses, `raw` for everything else; an explicit `extract` on other types is ignored. */
+	/**
+	 * Output format. Defaults to `extract` for HTML and PDF responses, `raw` for everything else;
+	 * an explicit `extract` on other types is ignored.
+	 */
 	format?: 'extract' | 'raw';
 	/** Save the output (extracted markdown or raw bytes) to a temp file and return its path. */
 	saveToTemp?: boolean;
@@ -86,7 +93,14 @@ export type FetchResult =
 	| { type: 'image'; value: { data: string; mimeType: string } }
 	| { type: 'text'; value: string };
 
-/** Fetch one URL. `format` defaults to `extract` for HTML and PDF responses and `raw` otherwise; an explicit `extract` on any other type is ignored (raw). `extract` output is markdown (HTML and PDF only); `raw` returns the response body as-is. Binary images (bmp/gif/jpeg/png/webp) always become base64 image attachments regardless of format. `saveToTemp` writes the output to a temp file and returns its path — `.md` for extracted output, otherwise the raw bytes with an extension derived from the content type (URL path and magic bytes as fallbacks). */
+/**
+ * Fetch one URL. `format` defaults to `extract` for HTML and PDF responses and `raw` otherwise; an
+ * explicit `extract` on any other type is ignored (raw). `extract` output is markdown (HTML and PDF
+ * only); `raw` returns the response body as-is. Binary images (bmp/gif/jpeg/png/webp) always become
+ * base64 image attachments regardless of format. `saveToTemp` writes the output to a temp file and
+ * returns its path — `.md` for extracted output, otherwise the raw bytes with an extension derived
+ * from the content type (URL path and magic bytes as fallbacks).
+ */
 export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	const url = new URL(opts.url);
 	const response = await fetch(url);
@@ -99,7 +113,10 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	if (IMAGE_MIME.has(mime)) {
 		const bytes = new Uint8Array(await response.arrayBuffer());
 		if (opts.saveToTemp)
-			return { type: 'text', value: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
+			return {
+				type: 'text',
+				value: await saveTemp(bytes, tempExtension(bytes, url, contentType)),
+			};
 		return {
 			type: 'image',
 			value: { data: Buffer.from(bytes).toString('base64'), mimeType: mime },
@@ -120,7 +137,10 @@ export async function fetchUrl(opts: FetchOptions): Promise<FetchResult> {
 	// Raw: save preserves the exact byte stream (binary included).
 	if (opts.saveToTemp) {
 		const bytes = new Uint8Array(await response.arrayBuffer());
-		return { type: 'text', value: await saveTemp(bytes, tempExtension(bytes, url, contentType)) };
+		return {
+			type: 'text',
+			value: await saveTemp(bytes, tempExtension(bytes, url, contentType)),
+		};
 	}
 	return { type: 'text', value: await response.text() };
 }
@@ -131,8 +151,7 @@ export const toolFetch: Extension = (pi) => {
 		description:
 			'Output format. `extract`: to markdown; default for HTML and PDF, ignored on other types. `raw`: response body as-is.',
 	});
-	registerActive(
-		pi,
+	pi.registerTool(
 		defineTool({
 			description: 'Fetch a single URL with GET. Can fetch images.',
 			async execute(_toolCallId, params, signal) {
@@ -142,8 +161,15 @@ export const toolFetch: Extension = (pi) => {
 					if (type === 'image')
 						return {
 							content: [
-								{ text: `Fetched image [${value.mimeType}]`, type: 'text' } as const,
-								{ data: value.data, mimeType: value.mimeType, type: 'image' } as const,
+								{
+									text: `Fetched image [${value.mimeType}]`,
+									type: 'text',
+								} as const,
+								{
+									data: value.data,
+									mimeType: value.mimeType,
+									type: 'image',
+								} as const,
 							],
 							details: undefined,
 							structuredContent: value.data,

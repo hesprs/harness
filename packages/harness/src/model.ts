@@ -1,4 +1,8 @@
-/** Persistence model (pure): the application-session folder + meta.json and session records. No state; all mutation happens through the Sessions module (single writer by construction). Relationships and talkable-agent semantics live in the Controller; handoff in ./patch.ts. */
+/**
+ * Persistence model (pure): the application-session folder + meta.json and session records. No
+ * state; all mutation happens through the Sessions module (single writer by construction).
+ * Relationships and talkable-agent semantics live in the Controller; handoff in ./patch.ts.
+ */
 import { readdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -17,12 +21,7 @@ export type SessionRecord = {
 	status: 'running' | 'stopped';
 };
 
-export type LeaderTalk = {
-	at: string;
-	from: string;
-	message: string;
-	relationship: Relationship;
-};
+export type LeaderTalk = { at: string; from: string; message: string; relationship: Relationship };
 
 export type Relationship = 'leader' | 'colleague' | 'child';
 

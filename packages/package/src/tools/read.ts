@@ -1,5 +1,3 @@
-/** Read tool: raw file content with offset/limit pagination and Pi-style continuation hints; depth-1 directory listing as structured entries; PDF → markdown extraction; binary images as base64 image blocks. */
-import type { Extension } from '@repo/shared/contract';
 import { defineTool, formatSize, truncateHead } from '@earendil-works/pi-coding-agent';
 import { extractPagesMarkdown } from '@firecrawl/pdf-inspector';
 import { text } from '@repo/shared/text';
@@ -7,9 +5,17 @@ import { Buffer } from 'node:buffer';
 import { readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { Type } from 'typebox';
-import { registerActive } from './common.ts';
+/**
+ * Read tool: raw file content with offset/limit pagination and Pi-style continuation hints; depth-1
+ * directory listing as structured entries; PDF → markdown extraction; binary images as base64 image
+ * blocks.
+ */
+import type { Extension } from '@repo/shared/contract';
 
-/** One directory entry: a file (with byte size and optional line cnt for text files) or a folder (with direct child count). */
+/**
+ * One directory entry: a file (with byte size and optional line cnt for text files) or a folder
+ * (with direct child count).
+ */
 type DirEntry =
 	| { type: 'file'; name: string; size: number; lineCount?: number }
 	| { type: 'folder'; name: string; itemCount: number };
@@ -43,7 +49,10 @@ const IMAGE_MIME: Record<string, string> = {
 	'.webp': 'image/webp',
 };
 
-/** Describe a single file as a `DirEntry` (reads bytes to determine text line count; binary files omit `lineCount`). */
+/**
+ * Describe a single file as a `DirEntry` (reads bytes to determine text line count; binary files
+ * omit `lineCount`).
+ */
 async function describeFile(absolute: string, name: string): Promise<DirEntry> {
 	const bytes = await Bun.file(absolute).bytes();
 	let lineCount: number | undefined;
@@ -59,7 +68,10 @@ async function describeFile(absolute: string, name: string): Promise<DirEntry> {
 		: { lineCount, name, size: bytes.length, type: 'file' };
 }
 
-/** Depth-1 directory listing: every direct child as a structured `DirEntry` (file descriptions and folder counts run in parallel). */
+/**
+ * Depth-1 directory listing: every direct child as a structured `DirEntry` (file descriptions and
+ * folder counts run in parallel).
+ */
 async function listDirectory(path: string): Promise<Array<DirEntry>> {
 	const dirents = await readdir(path, { withFileTypes: true });
 	return Promise.all(
@@ -73,7 +85,10 @@ async function listDirectory(path: string): Promise<Array<DirEntry>> {
 	);
 }
 
-/** Format directory entries as human-readable text: `name: N lines, SIZE`, `name: SIZE`, or `name: folder (N items)`. */
+/**
+ * Format directory entries as human-readable text: `name: N lines, SIZE`, `name: SIZE`, or `name:
+ * folder (N items)`.
+ */
 export function formatListing(entries: Array<DirEntry>): string {
 	return entries
 		.map((entry) => {
@@ -120,7 +135,10 @@ function paginate(content: string, options: ReadOptions = {}): string {
 	return output;
 }
 
-/** Read a file (raw content with offset/limit pagination; PDFs are extracted to markdown first; binary images become base64 image blocks) or a directory (depth-1 structured listing). */
+/**
+ * Read a file (raw content with offset/limit pagination; PDFs are extracted to markdown first;
+ * binary images become base64 image blocks) or a directory (depth-1 structured listing).
+ */
 export async function readPath(path: string, options: ReadOptions = {}): Promise<ReadResult> {
 	let isDirectory: boolean;
 	try {
@@ -173,8 +191,7 @@ const dirEntrySchema = Type.Union(
 );
 
 export const toolRead: Extension = (pi) => {
-	registerActive(
-		pi,
+	pi.registerTool(
 		defineTool({
 			description:
 				'Read a file or a directory. Can read images; PDFs are extracted to markdown; reading directories lists contents.',
@@ -219,9 +236,7 @@ export const toolRead: Extension = (pi) => {
 			]),
 			parameters: Type.Object({
 				limit: Type.Optional(
-					Type.Number({
-						description: 'Maximum number of lines to read (files only)',
-					}),
+					Type.Number({ description: 'Maximum number of lines to read (files only)' }),
 				),
 				offset: Type.Optional(
 					Type.Number({

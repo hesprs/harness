@@ -1,15 +1,10 @@
-import { test, expect } from 'bun:test';
 import { searchExa } from '@/tools/search.ts';
+import { test, expect } from 'bun:test';
 
 /** Minimal streamable-HTTP MCP server recording incoming requests. */
 function makeMcpServer() {
 	type RecordedRequest = {
-		body: {
-			id?: number;
-			jsonrpc?: string;
-			method?: string;
-			params?: Record<string, unknown>;
-		};
+		body: { id?: number; jsonrpc?: string; method?: string; params?: Record<string, unknown> };
 		session?: string | undefined;
 	};
 	const requests: Array<RecordedRequest> = [];

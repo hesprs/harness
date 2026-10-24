@@ -1,8 +1,8 @@
+import { tmpRoot } from './utils';
+import { deletePath } from '@/tools/delete';
 import { test, expect } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { deletePath } from '@/tools/delete';
-import { tmpRoot } from './utils';
 
 test('plain file deletion removes the file', async () => {
 	const root = tmpRoot();

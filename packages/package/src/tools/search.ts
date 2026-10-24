@@ -1,21 +1,15 @@
-import type { Extension } from '@repo/shared/contract';
-/** Search tool: keyless semantic web search via Exa's hosted MCP service (https://mcp.exa.ai/mcp, streamable HTTP, no authentication required). */
+/**
+ * Search tool: keyless semantic web search via Exa's hosted MCP service (https://mcp.exa.ai/mcp,
+ * streamable HTTP, no authentication required).
+ */
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
-import { registerActive } from './common.ts';
+import type { Extension } from '@repo/shared/contract';
 
-export type SearchOptions = {
-	query: string;
-	count?: number;
-};
+export type SearchOptions = { query: string; count?: number };
 
-type JsonRpc = {
-	jsonrpc: '2.0';
-	id?: number;
-	method?: string;
-	params?: unknown;
-};
+type JsonRpc = { jsonrpc: '2.0'; id?: number; method?: string; params?: unknown };
 
 /** Parse a `text/event-stream` body and return the JSON-RPC response payload. */
 function sseResult(raw: string): {
@@ -88,8 +82,7 @@ export async function searchExa(
 
 // Extension that registers the `search` tool.
 export const toolSearch: Extension = (pi) => {
-	registerActive(
-		pi,
+	pi.registerTool(
 		defineTool({
 			description: 'Semantic web search via Exa.',
 			async execute(_toolCallId, params) {

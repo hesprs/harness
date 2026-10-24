@@ -1,4 +1,7 @@
-/** Register MCP servers programmatically. Servers connect when the session starts; `mcp.json` entries of the same name take precedence. */
+/**
+ * Register MCP servers programmatically. Servers connect when the session starts; `mcp.json`
+ * entries of the same name take precedence.
+ */
 import type { McpServerConfig } from '@earendil-works/pi-coding-agent';
 import type { Extension } from '@repo/shared/contract';
 

@@ -1,10 +1,10 @@
+import { tmpRoot, makePdf } from './utils';
+import { formatListing, pdfToMarkdown, readPath } from '@/tools/read.ts';
 import { formatSize } from '@earendil-works/pi-coding-agent';
 import { test, expect } from 'bun:test';
 import { Buffer } from 'node:buffer';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { formatListing, pdfToMarkdown, readPath } from '@/tools/read.ts';
-import { tmpRoot, makePdf } from './utils';
 
 test('readPath returns raw file content without line numbers', async () => {
 	const root = tmpRoot();
@@ -28,12 +28,7 @@ test('readPath on a directory returns structured listing (depth-1)', async () =>
 		await Bun.write(join(root, 'sub', 'deep.txt'), 'b\n');
 		const { type, value } = await readPath(root);
 		if (type !== 'listing') throw new Error('Expected listing variant');
-		expect(value).toContainEqual({
-			lineCount: 3,
-			name: 'one.txt',
-			size: 9,
-			type: 'file',
-		});
+		expect(value).toContainEqual({ lineCount: 3, name: 'one.txt', size: 9, type: 'file' });
 		expect(value).toContainEqual({ name: 'blob.bin', size: 3, type: 'file' });
 		expect(value).toContainEqual({ itemCount: 1, name: 'sub', type: 'folder' });
 		// Depth-1: nested entries must not appear
@@ -62,9 +57,7 @@ test('readPath honors offset and limit', async () => {
 		await Bun.write(file, 'alpha\nbeta\ngamma\ndelta\n');
 		let { type: t, value: v } = await readPath(file, { limit: 2, offset: 2 });
 		if (t === 'text')
-			expect(v).toBe(
-				'beta\ngamma\n\n[1 more lines in file. Use offset=4 to continue.]',
-			);
+			expect(v).toBe('beta\ngamma\n\n[1 more lines in file. Use offset=4 to continue.]');
 		else throw new Error('Expected text variant');
 		({ type: t, value: v } = await readPath(file, { offset: 3 }));
 		if (t === 'text') expect(v).toBe('gamma\ndelta');
@@ -84,9 +77,7 @@ test('readPath shows continuation hint when limit stops early', async () => {
 		await Bun.write(file, 'a\nb\nc\nd\ne\n');
 		const { type, value } = await readPath(file, { limit: 2 });
 		if (type === 'text')
-			expect(value).toBe(
-				'a\nb\n\n[3 more lines in file. Use offset=3 to continue.]',
-			);
+			expect(value).toBe('a\nb\n\n[3 more lines in file. Use offset=3 to continue.]');
 		else throw new Error('Expected text variant');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
@@ -103,9 +94,7 @@ test('readPath shows continuation hint when truncated by line limit', async () =
 		);
 		const { type, value } = await readPath(file);
 		if (type === 'text')
-			expect(value).toContain(
-				'[Showing lines 1-2000 of 2001. Use offset=2001 to continue.]',
-			);
+			expect(value).toContain('[Showing lines 1-2000 of 2001. Use offset=2001 to continue.]');
 		else throw new Error('Expected text variant');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
@@ -118,9 +107,8 @@ test('readPath reports offset beyond file end as error', async () => {
 		const file = join(root, 'small.txt');
 		await Bun.write(file, 'only\none\n');
 		const { type, value } = await readPath(file, { offset: 10 });
-		if (type === 'error') {
-			expect(value).toContain('beyond end of file');
-		} else throw new Error('Expected error variant');
+		if (type === 'error') expect(value).toContain('beyond end of file');
+		else throw new Error('Expected error variant');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}

@@ -1,8 +1,13 @@
-import type { Extension, TalkableInfoEvent } from '@repo/shared/contract';
 import { kernel, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { join } from 'node:path';
+import type { Extension, TalkableInfoEvent } from '@repo/shared/contract';
 
-/** The personal note: a per-session markdown file inside the application session folder. Its path goes into a persisted system prompt section (reminding this agent) and into its talkable-info event (manifesting this session to other agents). The content is cached at `before_agent_start` time; the talkable-info handler mutates synchronously using the cache. */
+/**
+ * The personal note: a per-session markdown file inside the application session folder. Its path
+ * goes into a persisted system prompt section (reminding this agent) and into its talkable-info
+ * event (manifesting this session to other agents). The content is cached at `before_agent_start`
+ * time; the talkable-info handler mutates synchronously using the cache.
+ */
 const personalNote: Extension = (pi) => {
 	let notePath: string | undefined;
 	/** Cached note content, refreshed at the start of each turn. */

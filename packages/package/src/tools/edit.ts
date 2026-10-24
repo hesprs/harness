@@ -1,20 +1,26 @@
-/** Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named extension tool wins in Pi's tool registry). Matching first tries the exact substring, then a whitespace-less pass: every whitespace character is stripped from both sides. and a fuzzy match always replaces whole lines of real file text — never the query.
- * An ambiguous match is reported with 1-indexed line numbers instead of guessing; per-edit `replaceAll` opts into every occurrence instead. All edits in one call match the original content (not incrementally) and apply bottom-up. A bad edit never sinks the others: it is skipped and named in `failures`, while the matchable ones still land and are named in `applied`. */
-import type { Extension } from '@repo/shared/contract';
-import type { Static } from 'typebox';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { Type } from 'typebox';
-import { registerActive } from './common.ts';
+/**
+ * Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named extension tool wins in
+ * Pi's tool registry). Matching first tries the exact substring, then a whitespace-less pass: every
+ * whitespace character is stripped from both sides. and a fuzzy match always replaces whole lines
+ * of real file text — never the query. An ambiguous match is reported with 1-indexed line numbers
+ * instead of guessing; per-edit `replaceAll` opts into every occurrence instead. All edits in one
+ * call match the original content (not incrementally) and apply bottom-up. A bad edit never sinks
+ * the others: it is skipped and named in `failures`, while the matchable ones still land and are
+ * named in `applied`.
+ */
+import type { Extension } from '@repo/shared/contract';
+import type { Static } from 'typebox';
 
 /** One targeted replacement. */
-export type EditInput = {
-	newText: string;
-	oldText: string;
-	replaceAll?: boolean;
-};
+export type EditInput = { newText: string; oldText: string; replaceAll?: boolean };
 
-/** Whitespace-less, escape-agnostic normalization: every whitespace character vanishes. `indices[i]` is the source offset of chunk character `i`. */
+/**
+ * Whitespace-less, escape-agnostic normalization: every whitespace character vanishes. `indices[i]`
+ * is the source offset of chunk character `i`.
+ */
 function normalizeChunks(source: string): { chunks: string; indices: Array<number> } {
 	const chars: Array<string> = [];
 	const indices: Array<number> = [];
@@ -27,7 +33,10 @@ function normalizeChunks(source: string): { chunks: string; indices: Array<numbe
 	return { chunks: chars.join(''), indices };
 }
 
-/** Every occurrence of `oldText` as real-text spans: the exact substring when present, else the line-expanded whitespace/escape-agnostic match. */
+/**
+ * Every occurrence of `oldText` as real-text spans: the exact substring when present, else the
+ * line-expanded whitespace/escape-agnostic match.
+ */
 function resolveSpans(
 	content: string,
 	oldText: string,
@@ -66,7 +75,10 @@ function resolveSpans(
 
 type Span = { edit: number; end: number; replacement: string; start: number };
 
-/** A renderable diff (`+line`/`-line`/context hunks, pi's renderDiff format) of the applied spans — the changed regions are known exactly, so no general-purpose diff algorithm is needed. */
+/**
+ * A renderable diff (`+line`/`-line`/context hunks, pi's renderDiff format) of the applied spans —
+ * the changed regions are known exactly, so no general-purpose diff algorithm is needed.
+ */
 export function diffSpans(before: string, spans: Array<Span>, context = 4): string {
 	const allLines = before.split('\n');
 	const visible = before.endsWith('\n') ? allLines.slice(0, -1) : allLines;
@@ -116,16 +128,14 @@ export function diffSpans(before: string, spans: Array<Span>, context = 4): stri
 	return out.join('\n');
 }
 
-/** Apply every edit to `content` (LF-normalized): match all against the original, write bottom-up. Unmatchable or clashing edits are skipped and reported; whatever still matches is applied. */
+/**
+ * Apply every edit to `content` (LF-normalized): match all against the original, write bottom-up.
+ * Unmatchable or clashing edits are skipped and reported; whatever still matches is applied.
+ */
 export function applyEdits(
 	content: string,
 	edits: Array<EditInput>,
-): {
-	applied: Array<number>;
-	content: string;
-	diff?: string;
-	failures: Array<string>;
-} {
+): { applied: Array<number>; content: string; diff?: string; failures: Array<string> } {
 	const spans: Array<Span> = [];
 	const problems: Array<{ index: number; message: string }> = [];
 	for (let i = 0; i < edits.length; i++) {
@@ -180,7 +190,11 @@ export function applyEdits(
 	};
 }
 
-/** Edit a file in place. The model never includes an invisible BOM in oldText, and CRLF line endings round-trip: matching happens on LF-normalized content. Returns the applied edit indices, the renderable diff, and the per-edit failures of whatever got skipped. */
+/**
+ * Edit a file in place. The model never includes an invisible BOM in oldText, and CRLF line endings
+ * round-trip: matching happens on LF-normalized content. Returns the applied edit indices, the
+ * renderable diff, and the per-edit failures of whatever got skipped.
+ */
 export async function editFile(
 	path: string,
 	edits: Array<EditInput>,
@@ -224,8 +238,7 @@ type EditOutput = Static<typeof editOutputSchema>;
 
 // Extension that registers the fuzzy `edit` tool, overriding Pi's built-in.
 export const toolEdit: Extension = (pi) => {
-	registerActive(
-		pi,
+	pi.registerTool(
 		defineTool({
 			description:
 				'Edit a file by targeted text replacement. Each edit is matched against the original file, oldText should match file content. For ambiguous oldText (many matches), add surrounding context or set replaceAll. Use this and NEVER use Python or Bash to edit files.',
@@ -279,7 +292,6 @@ export const toolEdit: Extension = (pi) => {
 					description: 'Path to the file to edit (relative or absolute).',
 				}),
 			}),
-			// Pi's built-in edit renderer draws its own shell (a padded box). Withoutmaximizable: true, this, Pi wraps the renderer's box in the generic tool box: box in box.
 			renderShell: 'self',
 		}),
 	);

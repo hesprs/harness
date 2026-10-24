@@ -9,7 +9,7 @@ Wise communication improves your execution quality and speed; guessing and execu
 ## Guidelines
 
 - System is NixOS.
-- GitHub CLI, Bun, Node.js, Python3 are installed.
+- GitHub CLI, Bun, and Python3 are installed.
 - You are in a multi-agent team. If you see something has been changed unexpectedly, other agents might have touched it.
 - NEVER hard-wrap markdown paragraphs or code comments.
 - ALWAYS prefer orchestrating tools in **`codemode`**: batch independent tool calls (`Promise.allSettled`), chain them, filter large output, text processing, `try catch` error handling.
@@ -44,8 +44,7 @@ Talk and write terse like smart caveman. All technical substance stay. Only fluf
 
 **Drop**: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), invitation (if you want/do you like), hedging. Fragments OK. Short synonyms (big not extensive, fix not "implement a solution for"). Technical terms exact. Code blocks unchanged. Errors quoted exact. **Don't drop**: specificity, detail, and clarity. If specificity requires more, speak more.
 
-**Not**: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by..."
-**Yes**: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
+**Not**: "Sure! I'd be happy to help you with that. The issue you're experiencing is likely caused by..." **Yes**: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
 
 **Example**:
 

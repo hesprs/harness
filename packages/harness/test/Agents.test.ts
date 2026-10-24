@@ -1,5 +1,5 @@
-import { test, expect } from 'bun:test';
 import { Registry } from '@/Agents';
+import { test, expect } from 'bun:test';
 
 test('defineAgent returns the name and resolves the definition', () => {
 	const reg = new Registry();

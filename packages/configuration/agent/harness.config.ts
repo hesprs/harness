@@ -3,7 +3,7 @@ import {
 	defineAgent,
 	defineBaseAgent,
 	skill,
-	// toolApplyPatch,
+	toolApplyPatch,
 	toolBash,
 	toolCodemode,
 	toolDelete,
@@ -14,38 +14,40 @@ import {
 	toolGrep,
 	toolRead,
 	toolSearch,
+	mcp,
 } from '@hesprs/harness';
 import { resolve } from 'node:path';
 
 const p = (path: string) => resolve(import.meta.dirname, path);
 const content = (path: string) => Bun.file(p(path)).text();
 const [workerPrompt, globalPrompt] = await Promise.all([
-	content('./agent/worker.md'),
+	content('./agents/worker.md'),
 	content('./AGENTS.md'),
 ]);
 
-defineBaseAgent({
-	model: 'zai/glm-5.3',
-	prompt: globalPrompt,
-	thinking: 'high',
-});
+defineBaseAgent({ model: 'openai/gpt-6.1-sol', prompt: globalPrompt, thinking: 'high' });
 
 defineAgent({
 	description:
 		'Fast execution specialist. Receives complete context and task spec, completes defined tasks efficiently.',
 	extensions: [
-		toolCodemode(),
+		toolCodemode,
 		toolBash,
 		toolFetch,
 		toolRead,
 		toolSearch,
-		toolWrite,
-		toolEdit,
-		toolDelete,
-		// toolApplyPatch,
+		// toolWrite,
+		// toolEdit,
+		// toolDelete,
+		toolApplyPatch,
 		toolFind,
 		toolGrep,
-		skill(p('./skill')),
+		skill(p('./skills')),
+		mcp('cua-driver', {
+			args: ['mcp'],
+			command: 'cua-driver',
+			env: { CUA_DRIVER_RS_ENABLE_WAYLAND: '1' },
+		}),
 	],
 	name: 'worker',
 	prompt: workerPrompt,

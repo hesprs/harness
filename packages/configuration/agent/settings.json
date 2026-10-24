@@ -1,23 +1,21 @@
 {
+	"$schema": "https://pi.dev/schemas/settings.schema.json",
 	"npmCommand": ["bun", "--bun"],
-	"packages": ["npm:pi-zentui", "npm:pi-scroll-speed"],
-	"scrollSpeed": { "wheelLines": 3 },
+	"packages": ["npm:pi-zentui"],
 	"lastChangelogVersion": "1.1.0",
 	"theme": "vivid",
 	"defaultProvider": "zai",
 	"defaultModel": "glm-5.3-flash",
 	"defaultThinkingLevel": "high",
 	"hideThinkingBlock": false,
-	"terminal": {
-		"showTerminalProgress": true
-	},
+	"terminal": { "showTerminalProgress": true },
 	"steeringMode": "all",
-	"compaction": {
-		"enabled": true
-	},
+	"compaction": { "enabled": true },
 	"showHardwareCursor": false,
 	"followUpMode": "all",
 	"collapseChangelog": true,
 	"enableInstallTelemetry": false,
-	"quietStartup": false
+	"quietStartup": false,
+	"showCacheMissNotices": true,
+	"skills": ["!**"]
 }
