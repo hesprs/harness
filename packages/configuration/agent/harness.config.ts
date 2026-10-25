@@ -25,7 +25,7 @@ const [workerPrompt, globalPrompt] = await Promise.all([
 	content('./AGENTS.md'),
 ]);
 
-defineBaseAgent({ model: 'openai/gpt-6.1-sol', prompt: globalPrompt, thinking: 'high' });
+defineBaseAgent({ model: 'zai/glm-5.3-flash', prompt: globalPrompt, thinking: 'high' });
 
 defineAgent({
 	description:

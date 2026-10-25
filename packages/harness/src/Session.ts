@@ -1,7 +1,6 @@
 import { encodeTalk, formatTalkNotice } from '@/Controller';
 import { appSessionsRoot } from '@/model';
-import { defineTool, getMarkdownTheme } from '@earendil-works/pi-coding-agent';
-import { Markdown } from '@earendil-works/pi-tui';
+import { defineTool } from '@earendil-works/pi-coding-agent';
 import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
 import { watch } from 'node:fs';
@@ -306,19 +305,6 @@ export default class Session {
 					message: Type.String({ description: 'Message content' }),
 					to: Type.String({ description: 'Target session ID' }),
 				}),
-				/**
-				 * Show the sent message in the tool result — the human sees what was said, once per
-				 * talk, instead of a replaceable status notification.
-				 */
-				renderResult: (result, _options, _theme, context) =>
-					new Markdown(
-						context.isError
-							? result.content.map((c) => (c.type === 'text' ? c.text : '')).join('')
-							: `**${context.args.to}**\n\n${context.args.message}`,
-						0,
-						0,
-						getMarkdownTheme(),
-					),
 			}),
 		);
 	}

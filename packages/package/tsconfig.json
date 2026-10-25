@@ -6,5 +6,5 @@
 			"@": ["./src"]
 		}
 	},
-	"include": ["**/*.ts"]
+	"include": ["**/*.ts", "src/tools/codemode-worker.ts"]
 }

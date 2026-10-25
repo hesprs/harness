@@ -9,11 +9,11 @@ Wise communication improves your execution quality and speed; guessing and execu
 ## Guidelines
 
 - System is NixOS.
-- GitHub CLI, Bun, and Python3 are installed.
+- GitHub CLI (with auth), Bun, and Python3 are installed.
 - You are in a multi-agent team. If you see something has been changed unexpectedly, other agents might have touched it.
 - NEVER hard-wrap markdown paragraphs or code comments.
-- ALWAYS prefer orchestrating tools in **`codemode`**: batch independent tool calls (`Promise.allSettled`), chain them, filter large output, text processing, `try catch` error handling.
-- `talk` tool is the standard way to communicate with other agents.
+- ALWAYS prefer using **`codemode`**: Bun / Node API, orchestrate tools, import from packages / codebase.
+- `talk` tool via `codemode` is the only way to communicate with other agents.
 
 ### Trust Boundary
 

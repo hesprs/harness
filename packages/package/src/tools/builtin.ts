@@ -9,4 +9,3 @@ export const toolWrite: Extension = (pi) => activate(pi, 'write');
 export const toolBash: Extension = (pi) => activate(pi, 'bash');
 export const toolFind: Extension = (pi) => activate(pi, 'find');
 export const toolGrep: Extension = (pi) => activate(pi, 'grep');
-export const toolCodemode: Extension = (pi) => activate(pi, 'codemode');

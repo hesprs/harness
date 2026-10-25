@@ -17,5 +17,6 @@
 	"enableInstallTelemetry": false,
 	"quietStartup": false,
 	"showCacheMissNotices": true,
-	"skills": ["!**"]
+	"skills": ["!**"],
+	"codemode": { "mode": "only" }
 }

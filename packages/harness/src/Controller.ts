@@ -165,9 +165,9 @@ type CommandContext = Pick<ExtensionCommandContext, 'cwd' | 'ui' | 'newSession' 
 
 export default class Controller {
 	/** The interactive session's API; re-bound on every session_start. */
-	private pi: ExtensionAPI | undefined;
+	private pi?: ExtensionAPI;
 	/** Talk delivery holds while a session swap is in flight. */
-	private shifting: Promise<void> | undefined;
+	private shifting?: Promise<void>;
 
 	/**
 	 * Register the per-session surface at factory time: pi re-runs the extension factory for every
@@ -206,8 +206,8 @@ export default class Controller {
 			this.ctx.mutateMeta((m) => {
 				(m.leaderTalks ??= []).push(talk);
 			});
-			// The viewed session's own talks surface through the talk tool Result; background talks surface as a waterfall entry here.
-			if (this.ctx.viewing() !== from) this.pi?.appendEntry('talk', talk);
+			// Every talk to the leader, from the viewed session or a background one, surfaces here.
+			this.pi?.appendEntry('talk', talk);
 			return;
 		}
 		const session = await this.ctx.ensureLive(to);

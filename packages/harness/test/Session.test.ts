@@ -198,6 +198,7 @@ test('shifting back to an agent re-activates the tools its extensions registered
 			pi.registerTool(
 				defineTool({
 					description: name,
+					// oxlint-disable-next-line require-await : Pi type
 					async execute() {
 						return { content: [{ text: name, type: 'text' }], details: undefined };
 					},
@@ -229,7 +230,7 @@ test('shifting back to an agent re-activates the tools its extensions registered
 	expect(made.active()).toContain('second-tool');
 	current = 'first';
 	await made.fire('session_start', { type: 'session_start' }, ctx);
-	expect(made.active()).toEqual(expect.arrayContaining(['first-tool']));
+	expect(made.active()).toContain('first-tool');
 });
 
 test('session_start of a background session binds the spawner-registered identity', async () => {

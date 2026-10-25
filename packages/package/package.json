@@ -23,6 +23,7 @@
 		"typebox": "^1.3.32"
 	},
 	"devDependencies": {
-		"@repo/shared": "workspace:*"
+		"@repo/shared": "workspace:*",
+		"unplugin-raw": "^0.8.0"
 	}
 }

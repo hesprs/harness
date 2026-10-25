@@ -179,13 +179,14 @@ test('talk to the leader from a background session records the talk and appends 
 	}
 });
 
-test('talk to the leader from the viewed session appends no entry: the tool result renders it', async () => {
+test('talk to the leader from the viewed session appends the same waterfall entry', async () => {
 	const { appended, controller, root, sessions } = await setup();
 	try {
 		const binding = sessions.root.registerViewing({ agent: 'coder', piSessionId: 'pi-1' });
 		await controller.root.deliverTalk(binding.sessionId, LEADER_ID, 'hello');
 		expect(sessions.root.meta().leaderTalks?.[0]?.message).toBe('hello');
-		expect(appended).toEqual([]);
+		expect(appended).toHaveLength(1);
+		expect(appended[0]?.customType).toBe('talk');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
