@@ -3,7 +3,7 @@ name: manage-persistent-terminal
 description: Manage persistent terminal sessions using plain Bash. Must use before running these sessions, like start a dev server or blocking script.
 ---
 
-## Pattern: nohup + log file
+## Pattern: `nohup` + log file
 
 Two artifacts per session: stdout/stderr go to a log file, and the PID you just remember. The bash tool returns immediately; you poll the log for readiness and kill via the PID when done.
 

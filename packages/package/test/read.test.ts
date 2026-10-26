@@ -3,7 +3,7 @@ import { formatListing, pdfToMarkdown, readPath } from '@/tools/read.ts';
 import { formatSize } from '@earendil-works/pi-coding-agent';
 import { test, expect } from 'bun:test';
 import { Buffer } from 'node:buffer';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 test('readPath returns raw file content without line numbers', async () => {
@@ -26,11 +26,14 @@ test('readPath on a directory returns structured listing (depth-1)', async () =>
 		await Bun.write(join(root, 'blob.bin'), Buffer.from([0, 1, 2]));
 		mkdirSync(join(root, 'sub'));
 		await Bun.write(join(root, 'sub', 'deep.txt'), 'b\n');
+		symlinkSync(join(root, 'sub'), join(root, 'sub-link'));
 		const { type, value } = await readPath(root);
 		if (type !== 'listing') throw new Error('Expected listing variant');
 		expect(value).toContainEqual({ lineCount: 3, name: 'one.txt', size: 9, type: 'file' });
 		expect(value).toContainEqual({ name: 'blob.bin', size: 3, type: 'file' });
 		expect(value).toContainEqual({ itemCount: 1, name: 'sub', type: 'folder' });
+		// Symlinks to directories are listed as folders, not read as files
+		expect(value).toContainEqual({ itemCount: 1, name: 'sub-link', type: 'folder' });
 		// Depth-1: nested entries must not appear
 		expect(value.find((e) => e.name === 'deep.txt')).toBeUndefined();
 	} finally {

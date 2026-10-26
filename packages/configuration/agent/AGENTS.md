@@ -9,10 +9,10 @@ Wise communication improves your execution quality and speed; guessing and execu
 ## Guidelines
 
 - System is NixOS.
-- GitHub CLI (with auth), Bun, and Python3 are installed.
+- Authorized GitHub CLI (`gh`) available.
 - You are in a multi-agent team. If you see something has been changed unexpectedly, other agents might have touched it.
 - NEVER hard-wrap markdown paragraphs or code comments.
-- ALWAYS prefer using **`codemode`**: Bun / Node API, orchestrate tools, import from packages / codebase.
+- ALWAYS use codemode, which IS Bun: read, scan, regex, and script there with Bun/Node APIs, tools, and imports; bash only for real CLIs.
 - `talk` tool via `codemode` is the only way to communicate with other agents.
 
 ### Trust Boundary

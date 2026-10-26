@@ -16,7 +16,7 @@ type Output =
 	| { type: 'text'; text: string; console?: true }
 	| { type: 'image'; data: string; mimeType: string };
 
-type ScriptError = { name?: string; message: string; stack?: string };
+type ScriptError = { kind?: 'script'; name?: string; message: string; stack?: string };
 
 type StoreWrites = { set: Record<string, unknown>; delete: Array<string> };
 
@@ -76,7 +76,7 @@ function compile(code: string): string {
 	const body = code.replace(IMPORT, (_, clause: string | undefined, _quote, specifier: string) =>
 		rewriteImport(clause, specifier),
 	);
-	return `export default await (async () => {${body}\n})();`;
+	return `${WRAPPER_OPEN}${body}\n})();`;
 }
 
 let stored = new Map<string, unknown>();
@@ -97,7 +97,49 @@ function clean(message: string | undefined): string | undefined {
 	return message?.split(moduleUrl).join('codemode.ts');
 }
 
+/** One Bun parse failure, as found on `AggregateError.errors` for the script module. */
+type BuildMessage = {
+	message: string;
+	position?: { column: number; line: number; lineText: string };
+};
+
+/** First line of the compiled module, prepended to the script's first line by `compile`. */
+const WRAPPER_OPEN = 'export default await (async () => {';
+
+/**
+ * Bun reports script parse failures as an aggregate of build messages; surface each with its exact
+ * source position. Line numbers map to the script directly (the wrapper shares line 1), so only
+ * first-line columns are shifted by the wrapper prefix.
+ */
+function describeSyntaxErrors(error: AggregateError): ScriptError | undefined {
+	const details = (error.errors ?? [])
+		.map((sub) => {
+			const { position, message } = sub as BuildMessage;
+			if (typeof position?.line !== 'number') return '';
+			const column =
+				position.line === 1 && position.column > WRAPPER_OPEN.length
+					? position.column - WRAPPER_OPEN.length
+					: position.column;
+			const lineText =
+				position.line === 1
+					? position.lineText.slice(WRAPPER_OPEN.length).trim()
+					: position.lineText.trim();
+			return `line ${position.line}, column ${column}: ${message} (${lineText})`;
+		})
+		.filter((detail) => detail !== '');
+	if (details.length === 0) return undefined;
+	return {
+		kind: 'script',
+		message: `code contains ${details.length} syntax error${details.length === 1 ? '' : 's'}:\n${details.join('\n')}`,
+		name: 'SyntaxError',
+	};
+}
+
 function describeError(error: unknown): ScriptError {
+	if (error instanceof AggregateError) {
+		const syntax = describeSyntaxErrors(error);
+		if (syntax) return syntax;
+	}
 	if (error instanceof Error)
 		return { message: clean(error.message) ?? '', name: error.name, stack: clean(error.stack) };
 	return { message: clean(String(error)) ?? '' };

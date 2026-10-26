@@ -80,6 +80,13 @@ async function listDirectory(path: string): Promise<Array<DirEntry>> {
 				const children = await readdir(join(path, entry.name));
 				return { itemCount: children.length, name: entry.name, type: 'folder' };
 			}
+			if (entry.isSymbolicLink()) {
+				const target = await stat(join(path, entry.name));
+				if (target.isDirectory()) {
+					const children = await readdir(join(path, entry.name));
+					return { itemCount: children.length, name: entry.name, type: 'folder' };
+				}
+			}
 			return describeFile(join(path, entry.name), entry.name);
 		}),
 	);
