@@ -171,7 +171,7 @@ export function executeInBun(
 const QUICKJS_INTRO =
 	'Run JavaScript that calls other tools. The input is raw JavaScript (not JSON, no code fence), run as an async function body in a QuickJS sandbox: top-level `await` and `return` work. No Node, file system, network, or timers.';
 const BUN_INTRO =
-	'Run JavaScript that orchestrates other tools. The input is raw JS/TS (not JSON, no code fence), run as an async function body in a Bun worker thread. Top-level `await`, `return`, Bun & Node APIs, imports relative to CWD, all work. Equivalent to `bun -e` with more globals.';
+	'Run JavaScript that orchestrates other tools. The input is raw ESM JS/TS (not JSON, no code fence), run as an async function body in a Bun worker thread. Top-level `await`, `return`, Bun & Node APIs, dynamic imports, all work.';
 const RUNTIME_NOTE =
 	'Runtime: Scripts run in a Bun worker thread with JS/TS syntax, the full Bun API (`Bun.*`, `node:*` modules, `fetch`, timers, `import` of installed packages), and direct file system and network access.';
 

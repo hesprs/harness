@@ -9,7 +9,7 @@ The `codemode` tool lets the model write a TypeScript script that calls pi's oth
 
 The tool input is raw JS/TS source, not JSON and not a markdown code fence. It runs as the body of an async function in a Bun worker thread, so top-level `await` and `return` work.
 
-The script has the full Bun and Node API, `fetch`, timers, direct file system and network access, and it can `import` any package or file in the project. TypeScript syntax is available. Bare specifiers, relative paths, and absolute paths all resolve from the project directory. Prefer tools and `models` when they exist: a tool call is recorded in the session, cancellable, and visible to the model, while raw shell or file access from a script is not.
+The script has the full Bun and Node API, `fetch`, timers, direct file system and network access, and it can `await import()` any package or file in the project (static import doesn't work). TypeScript syntax is available. Bare specifiers, relative paths, and absolute paths all resolve from the project directory. Prefer tools and `models` when they exist: a tool call is recorded in the session, cancellable, and visible to the model, while raw shell or file access from a script is not.
 
 A script may start with an options line. It must be the first line; an options line anywhere else fails the call before the script runs:
 

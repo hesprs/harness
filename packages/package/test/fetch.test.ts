@@ -16,6 +16,7 @@ test('extractHtml converts HTML to markdown with absolute links', async () => {
 test('fetchUrl raw returns the response body', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response('plain body', { headers: { 'content-type': 'text/plain' } }),
+		port: 0,
 	});
 	const out = await fetchUrl({ format: 'raw', url: server.url.toString() });
 	expect(out.value).toBe('plain body');
@@ -24,6 +25,7 @@ test('fetchUrl raw returns the response body', async () => {
 test('fetchUrl extract converts HTML pages to markdown', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response(HTML, { headers: { 'content-type': 'text/html' } }),
+		port: 0,
 	});
 	const out = await fetchUrl({ url: `${server.url}article` });
 	expect(out.value).toContain('Article Title');
@@ -36,13 +38,14 @@ test('fetchUrl extract converts PDF responses to markdown', async () => {
 			new Response(new Uint8Array(makePdf('Fetched PDF Text')), {
 				headers: { 'content-type': 'application/pdf' },
 			}),
+		port: 0,
 	});
 	const out = await fetchUrl({ url: `${server.url}doc.pdf` });
 	expect((out.value as string).toLowerCase()).toContain('fetched');
 });
 
 test('fetchUrl saveToTemp writes bytes to a temp file and returns its path', async () => {
-	using server = Bun.serve({ fetch: () => new Response('saved content') });
+	using server = Bun.serve({ fetch: () => new Response('saved content'), port: 0 });
 	const { value: path } = (await fetchUrl({ saveToTemp: true, url: server.url.toString() })) as {
 		type: 'text';
 		value: string;
@@ -54,6 +57,7 @@ test('fetchUrl saveToTemp writes bytes to a temp file and returns its path', asy
 test('fetchUrl saveToTemp saves the extracted output, not raw bytes', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response(HTML, { headers: { 'content-type': 'text/html' } }),
+		port: 0,
 	});
 	const { value: path } = (await fetchUrl({ saveToTemp: true, url: server.url.toString() })) as {
 		type: 'text';
@@ -68,6 +72,7 @@ test('fetchUrl raw + saveToTemp preserves the exact byte stream', async () => {
 	const bytes = new Uint8Array(makePdf('Binary PDF'));
 	using server = Bun.serve({
 		fetch: () => new Response(bytes, { headers: { 'content-type': 'application/pdf' } }),
+		port: 0,
 	});
 	const { value: path } = (await fetchUrl({
 		format: 'raw',
@@ -81,6 +86,7 @@ test('fetchUrl raw + saveToTemp preserves the exact byte stream', async () => {
 	const bytes = new Uint8Array(makePdf('Binary PDF'));
 	using server = Bun.serve({
 		fetch: () => new Response(bytes, { headers: { 'content-type': 'application/pdf' } }),
+		port: 0,
 	});
 	const { value: path } = (await fetchUrl({
 		format: 'raw',
@@ -132,6 +138,7 @@ test('fetchUrl save-to-file extensions: mime, magic bytes, and markdown', async 
 test('fetchUrl defaults to raw for non-HTML/PDF content and ignores `extract`', async () => {
 	using server = Bun.serve({
 		fetch: () => new Response('{"a":1}', { headers: { 'content-type': 'application/json' } }),
+		port: 0,
 	});
 	// Default format on JSON is raw, so the temp file keeps the JSON extension.
 	const def = await fetchUrl({ saveToTemp: true, url: server.url.toString() });
@@ -154,6 +161,7 @@ test('fetchUrl returns XML responses as raw text, not markdown', async () => {
 			new Response('<root><a>1</a></root>', {
 				headers: { 'content-type': 'application/xml' },
 			}),
+		port: 0,
 	});
 	const out = await fetchUrl({ format: 'extract', url: server.url.toString() });
 	expect(out.value).toBe('<root><a>1</a></root>');
@@ -167,6 +175,7 @@ test('fetchUrl returns binary images as base64 image payloads, not text', async 
 	);
 	using server = Bun.serve({
 		fetch: () => new Response(png, { headers: { 'content-type': 'image/png' } }),
+		port: 0,
 	});
 	const out = (await fetchUrl({ url: `${server.url}pixel.png` })) as {
 		type: 'image';
@@ -178,7 +187,7 @@ test('fetchUrl returns binary images as base64 image payloads, not text', async 
 });
 
 test('fetchUrl rejects on HTTP error status', async () => {
-	using server = Bun.serve({ fetch: () => new Response('nope', { status: 404 }) });
+	using server = Bun.serve({ fetch: () => new Response('nope', { status: 404 }), port: 0 });
 	// oxlint-disable-next-line typescript/await-thenable
 	await expect(fetchUrl({ url: server.url.toString() })).rejects.toThrow();
 });

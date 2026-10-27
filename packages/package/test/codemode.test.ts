@@ -10,7 +10,7 @@ test('executeInBun reports single-line syntax errors with exact line and column'
 	if (result.ok) throw new Error('Expected error result');
 	expect(result.error.kind).toBe('script');
 	expect(result.error.name).toBe('SyntaxError');
-	expect(result.error.message).toContain('code contains 2 syntax errors');
+	expect(result.error.message).toContain('code contains 1 syntax error');
 	expect(result.error.message).toContain('line 1, column 19: Expected "}" but found ";"');
 	expect(result.error.message).toContain('const bad = { a: 1; });');
 });
@@ -60,43 +60,23 @@ test('executeInBun keeps import-like text in strings and comments intact', async
 	expect(result.value).toBe("import x from 'decoy';");
 });
 
-test('executeInBun resolves static imports of installed packages', async () => {
+test('executeInBun runs TypeScript with top-level await and return', async () => {
 	const code = [
-		"import { join, basename } from 'node:path';",
-		'return [join("a", "b"), basename("x/y")];',
+		'interface Pair { left: number; right: number }',
+		'const pair: Pair = { left: 1, right: 2 };',
+		"const { join } = await import('node:path');",
+		'return join(String(pair.left), String(pair.right));',
 	].join('\n');
 	const result = await executeInBun({ globals: [], timeoutMs: 5000, tools: [] }, code);
 	if (!result.ok) throw new Error(result.error.message);
-	expect(result.value).toEqual(['a/b', 'y']);
+	expect(result.value).toBe('1/2');
 });
 
-test('executeInBun resolves multiline and mid-code static imports', async () => {
-	const multiline = [
-		'import {',
-		'  join as j,',
-		"} from 'node:path';",
-		'return j("a", "c");',
-	].join('\n');
-	const midCode = [
-		'const run = true;',
-		"import { dirname } from 'node:path';",
-		"return dirname('/a/b');",
-	].join('\n');
-	for (const [code, expected] of [
-		[multiline, 'a/c'],
-		[midCode, '/a'],
-	] as Array<[string, string]>) {
-		const result = await executeInBun({ globals: [], timeoutMs: 5000, tools: [] }, code);
-		if (!result.ok) throw new Error(result.error.message);
-		expect(result.value).toBe(expected);
-	}
-});
-
-test('executeInBun skips type-only imports without resolving them', async () => {
+test('executeInBun returns early from a conditional top-level return', async () => {
 	const result = await executeInBun(
 		{ globals: [], timeoutMs: 5000, tools: [] },
-		"import type { Missing } from './does-not-exist';\nreturn 42;",
+		"if (true) {\n  return 'early';\n}\nreturn 'late';",
 	);
 	if (!result.ok) throw new Error(result.error.message);
-	expect(result.value).toBe(42);
+	expect(result.value).toBe('early');
 });

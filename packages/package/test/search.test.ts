@@ -46,6 +46,7 @@ function makeMcpServer() {
 
 			return new Response(undefined, { status: 202 });
 		},
+		port: 0,
 	});
 	return { requests, server };
 }
@@ -81,13 +82,17 @@ test('searchExa surfaces JSON-RPC errors', async () => {
 
 			return new Response(undefined, { status: 202 });
 		},
+		port: 0,
 	});
 	// oxlint-disable-next-line typescript/await-thenable
 	await expect(searchExa({ query: 'x' }, server.url.toString())).rejects.toThrow(/rate limited/u);
 });
 
 test('searchExa rejects a non-200 response', async () => {
-	using server = Bun.serve({ fetch: () => new Response('Unauthorized', { status: 401 }) });
+	using server = Bun.serve({
+		fetch: () => new Response('Unauthorized', { status: 401 }),
+		port: 0,
+	});
 	// oxlint-disable-next-line typescript/await-thenable
 	await expect(searchExa({ query: 'x' }, server.url.toString())).rejects.toThrow(/401/u);
 });
