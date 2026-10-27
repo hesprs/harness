@@ -1,9 +1,8 @@
 // oxlint-disable unicorn/require-post-message-target-origin
 /**
- * Runs inside a Bun worker as a module: Bun transpiles the TypeScript, resolves imports from the
- * working directory, and keeps `import.meta`, which neither a data URL nor a vm script would do.
- * Tool calls and output cross to the host as messages; the script body is wrapped in a function so
- * top-level `return` works as it did in the QuickJS sandbox.
+ * Runs inside a Bun worker. The script body runs as an async function: top-level `return` and
+ * `await` work, and static imports are rewritten to dynamic ones so they parse in a function body.
+ * Tool calls and output cross to the host as messages.
  */
 
 /** Mirrors the limits of the QuickJS prelude, so unsandboxed scripts stay within the same budget. */
@@ -40,13 +39,14 @@ const EXIT = new Error('codemode exit');
 const pending = new Map<number, Pending>();
 let nextId = 0;
 let finished = false;
-let moduleUrl = '';
 let outputChars = 0;
 let outputItems = 0;
 
-/** A static import, at the start of the script or after a statement ends. Its clause may span lines. */
-const IMPORT =
-	/(?:^|(?<=[;}\n]))[ \t]*import\s+(?:(?<clause>[\s\S]*?)\s+from\s*)?(?<quote>['"])(?<specifier>[^'"]+)\k<quote>\s*;?/gmu;
+type AsyncScript = () => Promise<unknown>;
+
+const AsyncFunction = (async () => {}).constructor as new (body: string) => AsyncScript;
+const transpiler = new Bun.Transpiler({ loader: 'ts' });
+
 /** The `* as ns` form of an import clause. */
 const NAMESPACE_CLAUSE = /^\*\s+as\s+(?<local>\w+)$/u;
 /** The `{ a, b as c }` part of an import clause. */
@@ -72,11 +72,45 @@ function rewriteImport(clause: string | undefined, specifier: string): string {
 	return `const { ${fields.join(', ')} } = await import(${source});`;
 }
 
-function compile(code: string): string {
-	const body = code.replace(IMPORT, (_, clause: string | undefined, _quote, specifier: string) =>
-		rewriteImport(clause, specifier),
+/** The stack line AsyncFunction's parser reports for a rejected body (its header adds two). */
+const PARSE_LINE = /at <parse> \(:(?<line>\d+)\)/u;
+/** A static import at the start of a line. Its clause may span lines. */
+const IMPORT_AT = /^import\s+(?:(?<clause>[\s\S]*?)\s+from\s*)?["'](?<specifier>[^"']+)["']\s*;?/u;
+
+/**
+ * Rewrite the static import the parser just rejected: the error names the offending line, and only
+ * a real import ever reaches here, so import-like text in strings or comments is never touched.
+ */
+function rewriteRejectedImport(body: string, error: SyntaxError): string | undefined {
+	if (!error.message.includes('import call') || !(error.stack ?? '').includes('<parse>')) return;
+	const line = Number(PARSE_LINE.exec(error.stack ?? '')?.groups?.line);
+	if (!line) return;
+	const lines = body.split('\n');
+	let start = 0;
+	for (const previous of lines.slice(0, line - 3)) start += previous.length + 1;
+	const { 0: statement, groups } = IMPORT_AT.exec(lines.slice(line - 3).join('\n')) ?? {};
+	if (!statement || !groups?.specifier) return;
+	return (
+		body.slice(0, start) +
+		rewriteImport(groups.clause, groups.specifier) +
+		body.slice(start + statement.length)
 	);
-	return `${WRAPPER_OPEN}${body}\n})();`;
+}
+
+/** Strip TypeScript, then feed the parser's rejections back until the body parses. */
+async function compile(code: string): Promise<string> {
+	function validate(body: string): string {
+		try {
+			new AsyncFunction(body);
+			return body;
+		} catch (error) {
+			const fixed =
+				error instanceof SyntaxError ? rewriteRejectedImport(body, error) : undefined;
+			if (!fixed) throw error;
+			return validate(fixed);
+		}
+	}
+	return validate(await transpiler.transform(code));
 }
 
 let stored = new Map<string, unknown>();
@@ -92,42 +126,27 @@ function serializeWrites(): StoreWrites {
 	};
 }
 
-/** Drop the blob URL the script was compiled from, so errors read like a normal script file. */
+/** Drop the worker-internal URL from stacks, so errors read like a normal script file. */
 function clean(message: string | undefined): string | undefined {
-	return message?.split(moduleUrl).join('codemode.ts');
+	return message?.replaceAll(/blob:[^)\s]+/gu, 'codemode.ts');
 }
 
-/** One Bun parse failure, as found on `AggregateError.errors` for the script module. */
-type BuildMessage = {
+/** One transpiler parse failure; positions are exact on the raw script. */
+type TransformMessage = {
 	message: string;
 	position?: { column: number; line: number; lineText: string };
 };
 
-/** First line of the compiled module, prepended to the script's first line by `compile`. */
-const WRAPPER_OPEN = 'export default await (async () => {';
-
-/**
- * Bun reports script parse failures as an aggregate of build messages; surface each with its exact
- * source position. Line numbers map to the script directly (the wrapper shares line 1), so only
- * first-line columns are shifted by the wrapper prefix.
- */
-function describeSyntaxErrors(error: AggregateError): ScriptError | undefined {
-	const details = (error.errors ?? [])
-		.map((sub) => {
-			const { position, message } = sub as BuildMessage;
-			if (typeof position?.line !== 'number') return '';
-			const column =
-				position.line === 1 && position.column > WRAPPER_OPEN.length
-					? position.column - WRAPPER_OPEN.length
-					: position.column;
-			const lineText =
-				position.line === 1
-					? position.lineText.slice(WRAPPER_OPEN.length).trim()
-					: position.lineText.trim();
-			return `line ${position.line}, column ${column}: ${message} (${lineText})`;
-		})
-		.filter((detail) => detail !== '');
-	if (details.length === 0) return undefined;
+/** Surface transpiler parse failures with their exact source positions. */
+function describeSyntaxError(error: AggregateError): ScriptError {
+	const details = (error.errors as Array<TransformMessage>).flatMap(({ message, position }) =>
+		position
+			? [
+					`line ${position.line}, column ${position.column}: ${message} (${position.lineText.trim()})`,
+				]
+			: [],
+	);
+	if (details.length === 0) return { message: error.message };
 	return {
 		kind: 'script',
 		message: `code contains ${details.length} syntax error${details.length === 1 ? '' : 's'}:\n${details.join('\n')}`,
@@ -136,10 +155,7 @@ function describeSyntaxErrors(error: AggregateError): ScriptError | undefined {
 }
 
 function describeError(error: unknown): ScriptError {
-	if (error instanceof AggregateError) {
-		const syntax = describeSyntaxErrors(error);
-		if (syntax) return syntax;
-	}
+	if (error instanceof AggregateError) return describeSyntaxError(error);
 	if (error instanceof Error)
 		return { message: clean(error.message) ?? '', name: error.name, stack: clean(error.stack) };
 	return { message: clean(String(error)) ?? '' };
@@ -344,16 +360,12 @@ async function run({
 		tools,
 	});
 
-	moduleUrl = URL.createObjectURL(new Blob([compile(code)], { type: 'text/javascript' }));
 	try {
-		const module = (await import(moduleUrl)) as { default: unknown };
 		// The host transfers the value with structured clone, so it is reduced to JSON as the QuickJS prelude did: undefined stays empty, anything else must be JSON-serializable.
-		const json = JSON.stringify(module.default);
+		const json = JSON.stringify(await new AsyncFunction(await compile(code))());
 		finish(true, json === undefined ? undefined : JSON.parse(json));
 	} catch (error) {
 		if (error !== EXIT) finish(false, describeError(error));
-	} finally {
-		URL.revokeObjectURL(moduleUrl);
 	}
 }
 

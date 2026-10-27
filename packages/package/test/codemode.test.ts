@@ -48,3 +48,55 @@ test('executeInBun still runs valid scripts and reports runtime errors', async (
 	expect(runtime.error.name).toBe('TypeError');
 	expect(runtime.error.message).toContain('boom');
 });
+
+test('executeInBun keeps import-like text in strings and comments intact', async () => {
+	const code = [
+		"const command = `import x from 'decoy';`;",
+		"// import z from 'decoy3'",
+		'return command;',
+	].join('\n');
+	const result = await executeInBun({ globals: [], timeoutMs: 5000, tools: [] }, code);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.value).toBe("import x from 'decoy';");
+});
+
+test('executeInBun resolves static imports of installed packages', async () => {
+	const code = [
+		"import { join, basename } from 'node:path';",
+		'return [join("a", "b"), basename("x/y")];',
+	].join('\n');
+	const result = await executeInBun({ globals: [], timeoutMs: 5000, tools: [] }, code);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.value).toEqual(['a/b', 'y']);
+});
+
+test('executeInBun resolves multiline and mid-code static imports', async () => {
+	const multiline = [
+		'import {',
+		'  join as j,',
+		"} from 'node:path';",
+		'return j("a", "c");',
+	].join('\n');
+	const midCode = [
+		'const run = true;',
+		"import { dirname } from 'node:path';",
+		"return dirname('/a/b');",
+	].join('\n');
+	for (const [code, expected] of [
+		[multiline, 'a/c'],
+		[midCode, '/a'],
+	] as Array<[string, string]>) {
+		const result = await executeInBun({ globals: [], timeoutMs: 5000, tools: [] }, code);
+		if (!result.ok) throw new Error(result.error.message);
+		expect(result.value).toBe(expected);
+	}
+});
+
+test('executeInBun skips type-only imports without resolving them', async () => {
+	const result = await executeInBun(
+		{ globals: [], timeoutMs: 5000, tools: [] },
+		"import type { Missing } from './does-not-exist';\nreturn 42;",
+	);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.value).toBe(42);
+});
