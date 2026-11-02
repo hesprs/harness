@@ -4,13 +4,24 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 /** Protocol identity of the human leader, shared by framework and package. */
 export const LEADER_ID = 'commander-00001';
 
-/** Channel of the talkable-info event. A session dispatches it on its own `pi.events` bus to gather what other agents see about it (description, note). Handlers must mutate the payload synchronously — the dispatching session reads it right after emit. */
+/**
+ * Channel of the talkable-info event. A session dispatches it on its own `pi.events` bus to gather
+ * what other agents see about it (description, note). Handlers must mutate the payload
+ * synchronously — the dispatching session reads it right after emit.
+ */
 export const TALKABLE_INFO_CHANNEL = 'harness:talkable-info';
 
-/** What other agents see about a session: one plain string that the session's extensions may rewrite on the talkable-info event. */
+/**
+ * What other agents see about a session: one plain string that the session's extensions may rewrite
+ * on the talkable-info event.
+ */
 export type TalkableInfoEvent = { text: string };
 
-/** Structural contract between the published tools and the live framework kernel (the framework entry stashes it on globalThis). Tools resolve the kernel through this accessor — never via framework imports — so the published package stays self-contained. */
+/**
+ * Structural contract between the published tools and the live framework kernel (the framework
+ * entry stashes it on globalThis). Tools resolve the kernel through this accessor — never via
+ * framework imports — so the published package stays self-contained.
+ */
 export type KernelContract = {
 	spawn: (
 		from: string,
@@ -50,7 +61,4 @@ export type BaseAgentArgs = {
 	extensions?: Array<Extension>;
 };
 
-export type NamedAgentArgs = {
-	name: string;
-	description: string;
-} & BaseAgentArgs;
+export type NamedAgentArgs = { name: string; description: string } & BaseAgentArgs;
