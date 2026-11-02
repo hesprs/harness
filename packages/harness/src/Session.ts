@@ -1,7 +1,7 @@
 import { encodeTalk, formatTalkNotice } from '@/Controller';
 import { appSessionsRoot } from '@/model';
 import { defineTool } from '@earendil-works/pi-coding-agent';
-import { TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
+import { LEADER_ID, TALKABLE_INFO_CHANNEL } from '@repo/shared/contract';
 import { errText, text } from '@repo/shared/text';
 import { watch } from 'node:fs';
 import { rename } from 'node:fs/promises';
@@ -10,20 +10,32 @@ import { Type } from 'typebox';
 import type { Kernel } from '@';
 import type { LiveSession } from '@/Sessions';
 import type {
+	AgentSettledEvent,
 	BeforeAgentStartEvent,
 	ExtensionAPI,
 	ExtensionContext,
 	InputEvent,
 	ToolDefinition,
+	TurnEndEvent,
 } from '@earendil-works/pi-coding-agent';
 import type { TalkableInfoEvent } from '@repo/shared/contract';
 import type { FSWatcher } from 'node:fs';
 
-const TALK_DESCRIPTION = `Send an message to another agent. Other agents communicate to you using this tool, you MUST communicate using this tool also; plain output is meaningless and NOT delivered to anyone. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop after talking without further tool calls; any incoming talks will wake you up when you have stopped.`;
+const TALK_DESCRIPTION = `Send a message to one or more agents. Other agents communicate to you using this tool, you MUST communicate using this tool also; plain output only reaches whoever talked to you last. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop after talking without further tool calls; any incoming talks will wake you up.`;
 
 const WORKING_STYLE = `You are an AI agent working with autonomy. You complete your tasks with high quality, and communicate with other agents smartly.`;
 
 const fmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Assistant text of a turn's message ('' when it has none). */
+function assistantText(message: TurnEndEvent['message']): string {
+	if (message.role !== 'assistant') return '';
+	return message.content
+		.filter((block) => block.type === 'text')
+		.map((block) => block.text)
+		.join('')
+		.trim();
+}
 
 /**
  * Move the session's record file into the app session folder. pi allocated the file in the default
@@ -53,20 +65,28 @@ async function relocateRecord(
 export default class Session {
 	/** Agent name ('' = no configs: the session stays Pi-native). */
 	agent = '';
-	sessionId: string | undefined;
-	private appFolder: string | undefined;
-	private topic: string | undefined;
+	sessionId?: string;
+	private appFolder?: string;
+	private topic?: string;
 	/** This session's Pi session file (the viewed agent's record). */
-	private piFile: string | undefined;
+	private piFile?: string;
 	/** Viewed sessions register on their first user message. */
 	private registered = false;
 	/** Agent whose definition is currently applied (adoption re-fires skip). */
-	private appliedAgent: string | undefined;
+	private appliedAgent?: string;
 	/** Topic file watcher; caches content for the prompt section. */
-	private topicWatcher: FSWatcher | undefined;
+	private topicWatcher?: FSWatcher;
 	private topicContent = '';
 	/** Background SDK session handle; the viewed session runs natively instead. */
-	live: LiveSession | undefined;
+	live?: LiveSession;
+	/** Turns completed in the current run. */
+	private turns = 0;
+	/** Turn of the current run in which this session last talked to another agent. */
+	private talkTurn?: number;
+	/** Session that most recently talked to this one. */
+	private lastTalker?: string;
+	/** Output to forward when the run settles: the last turn's, when that turn called no tool. */
+	private forward?: string;
 
 	constructor(
 		private readonly pi: ExtensionAPI,
@@ -78,6 +98,39 @@ export default class Session {
 		pi.on('session_start', (_, ctx) => this.start(ctx));
 		pi.on('before_agent_start', (event, ctx) => this.beginTurn(event, ctx));
 		pi.on('input', (event, ctx) => this.leaderInput(event, ctx));
+		pi.on('agent_start', () => this.startRun());
+		pi.on('turn_end', (event) => this.endTurn(event));
+		pi.on('agent_settled', (event) => this.settle(event));
+	}
+
+	/** A run began: its turn window starts empty, per-loop talk bookkeeping resets. */
+	private startRun(): void {
+		this.turns = 0;
+		this.talkTurn = undefined;
+		this.forward = undefined;
+	}
+
+	private endTurn(event: TurnEndEvent): void {
+		this.turns = event.turnIndex + 1;
+		const output = event.toolResults.length === 0 ? assistantText(event.message) : '';
+		this.forward = output === '' ? undefined : output;
+	}
+
+	/**
+	 * The run is over with a plain output: forward it to whoever talked last, unless this agent
+	 * talked inside the window (the last five turns, or the whole run when it is shorter) — so a
+	 * silent agent always answers its interlocutor.
+	 */
+	private async settle(event: AgentSettledEvent): Promise<void> {
+		const output = this.forward;
+		this.forward = undefined;
+		if (event.aborted || output === undefined) return;
+		if (this.sessionId === undefined || this.lastTalker === undefined) return;
+		const window = Math.min(5, this.turns);
+		if (this.talkTurn !== undefined && this.turns - 1 - this.talkTurn < window) return;
+		this.talkTurn = this.turns - 1;
+		// The interlocutor may be gone (deleted session): a dropped forward is not a failure.
+		await this.kernel.deliverTalk(this.sessionId, this.lastTalker, output).catch(() => {});
 	}
 
 	/** Bind this session's identity and apply the agent definition. */
@@ -278,6 +331,7 @@ export default class Session {
 		if (this.agent === '') return undefined;
 		await this.ensureRegistered(ctx);
 		if (this.sessionId === undefined) return undefined;
+		this.lastTalker = LEADER_ID;
 		// The app session's display name: the first user message, untransformed.
 		this.kernel.captureFirstMessage(event.text);
 		return {
@@ -291,19 +345,36 @@ export default class Session {
 			defineTool({
 				description: TALK_DESCRIPTION,
 				execute: async (_toolCallId, params) => {
-					if (this.sessionId === undefined) return text('session not bound yet', true);
-					try {
-						await this.kernel.deliverTalk(this.sessionId, params.to, params.message);
-						return text(`talked to ${params.to}`);
-					} catch (error) {
-						return text(errText(error), true);
-					}
+					const { sessionId: from } = this;
+					if (from === undefined) return text('session not bound yet', true);
+					// Duplicates would race ensureLive into two writers on one transcript.
+					const targets = [
+						...new Set(Array.isArray(params.to) ? params.to : [params.to]),
+					];
+					const settled = await Promise.allSettled(
+						targets.map((to) => this.kernel.deliverTalk(from, to, params.message)),
+					);
+					const failed = targets.flatMap((to, i) => {
+						const result = settled[i];
+						return result?.status === 'rejected'
+							? [`${to}: ${errText(result.reason)}`]
+							: [];
+					});
+					if (failed.length < targets.length) this.talkTurn = this.turns;
+					if (failed.length > 0) return text(failed.join('\n'), true);
+					return text(`talked to ${targets.join(', ')}`);
 				},
 				label: 'Talk',
 				name: 'talk',
 				parameters: Type.Object({
 					message: Type.String({ description: 'Message content' }),
-					to: Type.String({ description: 'Target session ID' }),
+					to: Type.Union([
+						Type.String({ description: 'Target agent ID' }),
+						// oxlint-disable-next-line unicorn/max-nested-calls
+						Type.Array(Type.String(), {
+							description: 'Target agent IDs: the talk is forwarded to each of them',
+						}),
+					]),
 				}),
 			}),
 		);
@@ -315,6 +386,7 @@ export default class Session {
 	 * conversation.
 	 */
 	deliver(from: string, rel: string, message: string): void {
+		this.lastTalker = from;
 		if (this.live !== undefined) {
 			const notice = formatTalkNotice(from, rel, message);
 			void (this.live.isStreaming

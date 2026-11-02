@@ -2,7 +2,7 @@
 	"$schema": "https://pi.dev/schemas/settings.schema.json",
 	"npmCommand": ["bun", "--bun"],
 	"packages": ["npm:pi-zentui"],
-	"lastChangelogVersion": "1.1.0",
+	"lastChangelogVersion": "1.4.0",
 	"theme": "vivid",
 	"defaultProvider": "zai",
 	"defaultModel": "glm-5.3-flash",

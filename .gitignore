@@ -9,3 +9,5 @@ packages/configuration/agent/extensions
 packages/configuration/agent/models-store.json
 packages/configuration/agent/harness-state.json
 packages/configuration/agent/trust.json
+packages/configuration/agent/crashes.json
+.env

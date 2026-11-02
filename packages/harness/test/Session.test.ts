@@ -329,6 +329,47 @@ test('the talk tool delivers through the kernel once bound', async () => {
 	expect(talked).toEqual([['worker-abcde', 'other-1', 'go']]);
 });
 
+test('the talk tool forwards the same message to every target', async () => {
+	const talked: Array<[string, string, string]> = [];
+	const made = await startedSession({
+		deliverTalk: (from: string, to: string, message: string) => {
+			talked.push([from, to, message]);
+		},
+	});
+	// The duplicate is delivered once.
+	const result = await made.tools
+		.get('talk')
+		?.execute('t1', { message: 'go', to: ['a-1', 'b-2', 'a-1'] });
+	expect(result).toEqual({
+		content: [{ text: 'talked to a-1, b-2', type: 'text' }],
+		details: undefined,
+	});
+	expect(talked).toEqual([
+		['worker-abcde', 'a-1', 'go'],
+		['worker-abcde', 'b-2', 'go'],
+	]);
+});
+
+test('the talk tool names the targets it could not reach', async () => {
+	const talked: Array<string> = [];
+	const made = await startedSession({
+		deliverTalk: (_from: string, to: string) => {
+			if (to === 'gone-3') return Promise.reject(new Error(`unknown session: ${to}`));
+			talked.push(to);
+			return Promise.resolve();
+		},
+	});
+	const result = await made.tools
+		.get('talk')
+		?.execute('t1', { message: 'go', to: ['a-1', 'gone-3'] });
+	expect(result).toEqual({
+		content: [{ text: 'gone-3: unknown session: gone-3', type: 'text' }],
+		details: undefined,
+		isError: true,
+	});
+	expect(talked).toEqual(['a-1']);
+});
+
 test('deliver steers a streaming live session, prompts an idle one, sends foreground otherwise', async () => {
 	const actions: Array<string> = [];
 	const live = (streaming: boolean): LiveSession => ({
@@ -374,4 +415,73 @@ test('info dispatches the talkable event on the session bus and returns the muta
 				(c.value as { channel: string }).channel === TALKABLE_INFO_CHANNEL,
 		),
 	).toBe(true);
+});
+
+/** A finished turn: assistant text, plus one tool result per tool call. */
+function turn(text: string, tools = 0) {
+	return {
+		message: { content: [{ text, type: 'text' }], role: 'assistant' },
+		toolResults: Array.from({ length: tools }, () => ({})),
+	};
+}
+
+/** A registered session capturing forwarded talks; its first user input is the leader talking. */
+async function forwarding() {
+	const talked: Array<[string, string, string]> = [];
+	const made = await startedSession({
+		deliverTalk: (from: string, to: string, message: string) => {
+			talked.push([from, to, message]);
+			return Promise.resolve();
+		},
+	});
+	return { ...made, talked };
+}
+
+test('a silent run forwards its plain output to the last agent that talked to it', async () => {
+	const made = await forwarding();
+	made.session.deliver('worker-b', 'colleague', 'status?');
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('done') }, made.ctx);
+	await made.fire('agent_settled', { aborted: false }, made.ctx);
+	expect(made.talked).toEqual([['worker-abcde', 'worker-b', 'done']]);
+});
+
+test('a silent run answers the leader when the leader talked last', async () => {
+	const made = await forwarding();
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('ok') }, made.ctx);
+	await made.fire('agent_settled', { aborted: false }, made.ctx);
+	expect(made.talked).toEqual([['worker-abcde', LEADER_ID, 'ok']]);
+});
+
+test('a talk in the run suppresses forwarding the plain output', async () => {
+	const made = await forwarding();
+	made.session.deliver('worker-b', 'colleague', 'go');
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('starting', 1) }, made.ctx);
+	await made.tools.get('talk')?.execute('t1', { message: 'on it', to: 'worker-b' });
+	await made.fire('turn_end', { turnIndex: 1, ...turn('done') }, made.ctx);
+	await made.fire('agent_settled', { aborted: false }, made.ctx);
+	expect(made.talked).toEqual([['worker-abcde', 'worker-b', 'on it']]);
+});
+
+test('a long run forwards the plain output once the talk is outside the five-turn window', async () => {
+	const made = await forwarding();
+	made.session.deliver('worker-b', 'colleague', 'go');
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('', 1) }, made.ctx);
+	await made.tools.get('talk')?.execute('t1', { message: 'working', to: 'worker-b' });
+	for (let turnIndex = 1; turnIndex < 6; turnIndex++)
+		await made.fire('turn_end', { turnIndex, ...turn('', 1) }, made.ctx);
+	await made.fire('turn_end', { turnIndex: 6, ...turn('done') }, made.ctx);
+	await made.fire('agent_settled', { aborted: false }, made.ctx);
+	expect(made.talked.at(-1)).toEqual(['worker-abcde', 'worker-b', 'done']);
+});
+
+test('an aborted run does not forward its plain output', async () => {
+	const made = await forwarding();
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('partial') }, made.ctx);
+	await made.fire('agent_settled', { aborted: true }, made.ctx);
+	expect(made.talked).toEqual([]);
 });
