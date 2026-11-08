@@ -24,7 +24,7 @@ import type {
 /** The human's agent name and description, as other agents see them. */
 export const LEADER_AGENT = 'leader';
 export const LEADER_DESCRIPTION =
-	'Leader that proposes ideas and coordinates works. Can perform UI operations and has environment root access.';
+	'Leader that proposes ideas and coordinates works. Can perform UI operations and has environment admin access.';
 
 export type TalkableSession = {
 	id: string;

@@ -20,7 +20,7 @@
 		"@earendil-works/pi-tui": "^1.5.0",
 		"@firecrawl/pdf-inspector": "^1.25.2",
 		"defuddle": "^0.19.6",
-		"typebox": "^1.4.3"
+		"typebox": "catalog:"
 	},
 	"devDependencies": {
 		"@repo/shared": "workspace:*",

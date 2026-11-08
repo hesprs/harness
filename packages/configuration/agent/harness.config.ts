@@ -25,6 +25,10 @@ const [workerPrompt, globalPrompt] = await Promise.all([
 	content('./AGENTS.md'),
 ]);
 
+process.loadEnvFile(p('.env'));
+const SNOWLUMA_MCP_TOKEN = process.env.SNOWLUMA_MCP_TOKEN;
+if (!SNOWLUMA_MCP_TOKEN) throw new Error('No Snowluma token!');
+
 defineBaseAgent({ model: 'zai/glm-5.3-flash', prompt: globalPrompt, thinking: 'high' });
 
 defineAgent({
@@ -43,10 +47,21 @@ defineAgent({
 		toolFind,
 		toolGrep,
 		skill(p('./skills')),
-		mcp('cua-driver', {
-			args: ['mcp'],
-			command: 'cua-driver',
-			env: { CUA_DRIVER_RS_ENABLE_WAYLAND: '1' },
+		mcp({
+			'cua-driver': {
+				args: ['mcp'],
+				command: 'cua-driver',
+				env: { CUA_DRIVER_RS_ENABLE_WAYLAND: '1' },
+			},
+			snowluma: {
+				args: ['@snowluma/mcp@2.3.4'],
+				command: 'bunx',
+				env: {
+					SNOWLUMA_MCP_ENDPOINT: 'http://127.0.0.1:3000/',
+					SNOWLUMA_MCP_MODE: 'read',
+					SNOWLUMA_MCP_TOKEN,
+				},
+			},
 		}),
 	],
 	name: 'worker',

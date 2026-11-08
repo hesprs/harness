@@ -7,9 +7,9 @@ description: Defines test standards. Must use before writing any test code.
 
 **Core principle**: Tests should verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. **Your work**: Write requested tests with respect to the styles below.
 
-## Phasing
+## Ordering
 
-Tests should be written right after public interfaces are fixed, but no real implementation are made. **Recommended: write stubs to pin down the file structure and public interfaces, then tests, then concrete implementation**.
+Tests should be written right after public interfaces are pinned, but no real implementation are made. **Write stubs to pin down the file structure and public interfaces, then tests, verify they fail, then concrete implementation, verify they pass.**
 
 - Anti-pattern 1: test after logic is writing mould passing your own code. No bugs can be caught.
 - Anti-pattern 2: test without public interface making you hallucinate the API. If you are asked to write tests without it, reject immediately.
