@@ -1,3 +1,7 @@
+---
+pin: https://github.com/cursor/plugins/blob/6b0300214a09fd6029cfb7077043125758cd1fd2/thermos/skills/thermo-nuclear-code-quality-review/SKILL.md
+---
+
 # Thermo-Nuclear Code Quality Review
 
 Use this skill for an unusually strict review focused on implementation quality, maintainability, abstraction quality, and codebase health.

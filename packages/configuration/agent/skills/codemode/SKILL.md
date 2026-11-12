@@ -1,6 +1,7 @@
 ---
 name: codemode
 description: Orchestrate tool calls with codemode. Read before using codemode.
+pin: https://github.com/earendil-works/pi/blob/7d073328e44337d3292a7db9b0f0308f679c5e97/packages/coding-agent/docs/codemode.md#L4
 ---
 
 The `codemode` tool lets the model write a TypeScript script that calls pi's other tools and runs non-LLM models, such as classifiers and image models. Only the script's output reaches the model, so a script can run calls in parallel and filter large results before the model sees them.
@@ -61,7 +62,3 @@ Tool declarations in the `codemode` description, `describeTool()`, and `ALL_TOOL
 - At most two codemode workers may be alive across all sessions in one pi process; `PI_CODEMODE_MAX_WORKERS` changes the limit. A cancelled worker occupies its slot until it exits. At capacity, new scripts wait for a free worker in arrival order. A script that gets no worker within 60 seconds, or before its `timeout_ms`, fails without running.
 - A script that awaits a promise that never settles runs until `timeout_ms`, or forever when it is unset.
 - Scripts cannot start other `codemode` scripts.
-
-## Extra
-
-See `./classify.md` and `./generate-images.md` for batch text classification and text generation guides. Note that these can be unusable if not configured.

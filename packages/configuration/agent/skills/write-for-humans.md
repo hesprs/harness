@@ -2,6 +2,7 @@
 name: write-for-humans
 description: Rewrite AI-sounding text so it reads like the writer without changing what it says.
 disable-model-invocation: true
+pin: https://github.com/blader/humanizer/blob/0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0/SKILL.md
 ---
 
 # Humanizer: remove AI writing patterns

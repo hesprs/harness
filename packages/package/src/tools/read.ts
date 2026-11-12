@@ -1,15 +1,15 @@
-import { defineTool, formatSize, truncateHead } from '@earendil-works/pi-coding-agent';
-import { extractPagesMarkdown } from '@firecrawl/pdf-inspector';
-import { text } from '@repo/shared/text';
-import { Buffer } from 'node:buffer';
-import { readdir, stat } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { Type } from 'typebox';
 /**
  * Read tool: raw file content with offset/limit pagination and Pi-style continuation hints; depth-1
  * directory listing as structured entries; PDF → markdown extraction; binary images as base64 image
  * blocks.
  */
+import { imageObject, pdfToMarkdown } from './utils.ts';
+import { defineTool, formatSize, truncateHead } from '@earendil-works/pi-coding-agent';
+import { text } from '@repo/shared/text';
+import { Buffer } from 'node:buffer';
+import { readdir, stat } from 'node:fs/promises';
+import { extname, join } from 'node:path';
+import { Type } from 'typebox';
 import type { Extension } from '@repo/shared/contract';
 
 /**
@@ -31,13 +31,6 @@ type ReadOptions = {
 	/** Maximum number of lines to read (files only). */
 	limit?: number;
 };
-
-/** Extract a PDF buffer to markdown (all pages). */
-export function pdfToMarkdown(buffer: Buffer): string {
-	return extractPagesMarkdown(buffer)
-		.pages.map((page) => page.markdown)
-		.join('\n\n');
-}
 
 /** Binary image file extensions → MIME types (returned as base64 image blocks). */
 const IMAGE_MIME: Record<string, string> = {
@@ -221,7 +214,11 @@ export const toolRead: Extension = (pi) => {
 							} as const,
 						],
 						details: undefined,
-						structuredContent: result.value.data,
+						structuredContent: {
+							data: result.value.data,
+							mimeType: result.value.mimeType,
+							type: 'image',
+						},
 					};
 				if (result.type === 'listing')
 					return {
@@ -236,9 +233,8 @@ export const toolRead: Extension = (pi) => {
 			label: 'Read',
 			name: 'read',
 			outputSchema: Type.Union([
-				Type.String({
-					description: 'Raw file content (files) / base64 image (image files)',
-				}),
+				Type.String({ description: 'Raw file content (files)' }),
+				imageObject,
 				Type.Array(dirEntrySchema),
 			]),
 			parameters: Type.Object({

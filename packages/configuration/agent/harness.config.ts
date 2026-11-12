@@ -15,6 +15,7 @@ import {
 	toolRead,
 	toolSearch,
 	mcp,
+	toolImageGen,
 } from '@hesprs/harness';
 import { resolve } from 'node:path';
 
@@ -46,6 +47,7 @@ defineAgent({
 		toolApplyPatch,
 		toolFind,
 		toolGrep,
+		toolImageGen,
 		skill(p('./skills')),
 		mcp({
 			'cua-driver': {
@@ -58,7 +60,7 @@ defineAgent({
 				command: 'bunx',
 				env: {
 					SNOWLUMA_MCP_ENDPOINT: 'http://127.0.0.1:3000/',
-					SNOWLUMA_MCP_MODE: 'read',
+					SNOWLUMA_MCP_MODE: 'write',
 					SNOWLUMA_MCP_TOKEN,
 				},
 			},

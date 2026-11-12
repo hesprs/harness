@@ -1,5 +1,5 @@
 import { tmpRoot, makePdf } from './utils';
-import { formatListing, pdfToMarkdown, readPath } from '@/tools/read.ts';
+import { formatListing, readPath } from '@/tools/read.ts';
 import { formatSize } from '@earendil-works/pi-coding-agent';
 import { test, expect } from 'bun:test';
 import { Buffer } from 'node:buffer';
@@ -135,11 +135,6 @@ test('readPath extracts a PDF to markdown', async () => {
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
-});
-
-test('pdfToMarkdown extracts text from a PDF buffer', () => {
-	const md = pdfToMarkdown(makePdf('Extracted Text'));
-	expect(md.toLowerCase()).toContain('extracted');
 });
 
 test('readPath returns an image payload for a binary image', async () => {

@@ -1,10 +1,10 @@
-import { pdfToMarkdown } from './read.ts';
 /**
  * Fetch tool: single-URL GET. Output format `extract` (HTML and PDF → markdown; the default for
  * HTML and PDF responses) or `raw` (the default for everything else — an explicit `extract` on
  * other types is ignored). Binary images always become base64 image blocks; optional query params
  * and save to a temp file.
  */
+import { imageObject, pdfToMarkdown } from './utils.ts';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 import { Defuddle } from 'defuddle/node';
@@ -172,7 +172,11 @@ export const toolFetch: Extension = (pi) => {
 								} as const,
 							],
 							details: undefined,
-							structuredContent: value.data,
+							structuredContent: {
+								data: value.data,
+								mimeType: value.mimeType,
+								type: 'image',
+							},
 						};
 					return { ...text(value), structuredContent: value };
 				} catch (error) {
@@ -181,10 +185,19 @@ export const toolFetch: Extension = (pi) => {
 			},
 			label: 'Fetch',
 			name: 'fetch',
-			outputSchema: Type.String({
-				description:
-					'Extracted markdown (extract) / raw text (raw) / base64 image (image file) / temp file path (saveToTemp)',
-			}),
+			outputSchema: Type.Union(
+				[
+					Type.String({
+						description:
+							'Extracted markdown (extract) / raw text (raw) / temp file path (saveToTemp)',
+					}),
+					imageObject,
+				],
+				{
+					description:
+						'Fetched content: extracted markdown, raw text, an image object, or a temp file path',
+				},
+			),
 			parameters: Type.Object({
 				format: Type.Optional(formats),
 				saveToTemp: Type.Optional(

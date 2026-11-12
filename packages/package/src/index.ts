@@ -25,6 +25,7 @@ export { toolWrite, toolBash, toolFind, toolGrep } from '@/tools/builtin.ts';
 export { toolCodemode } from '@/tools/codemode.ts';
 export { toolDelete } from '@/tools/delete.ts';
 export { toolFetch } from '@/tools/fetch.ts';
+export { toolImageGen } from '@/tools/image-gen.ts';
 export { toolSearch } from '@/tools/search.ts';
 export { toolApplyPatch } from '@/tools/apply-patch.ts';
 export { mcp } from '@/tools/mcp.ts';

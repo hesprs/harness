@@ -74,6 +74,8 @@ export const toolEdit: Extension;
 export const toolDelete: Extension;
 // Extension to give the agent fetch tool: standard JS `fetch`, single URL initiates `GET`, optional output format `extract` (default, use https://github.com/kepano/defuddle + https://github.com/WebReflection/linkedom, refer to Obsidian WebClipper implementation, when the fetched content is a PDF, extract using https://github.com/firecrawl/pdf-inspector) | `raw`, optional fetch params, optional save to file (temporary path) instead of dumping to model context.
 export const toolFetch: Extension;
+// Extension to give the agent image_gen tool: generate or edit images via the OpenAI Images API through the `openai` provider configured in Pi (API key from auth.json, base URL from models.json). With input `images` (local file paths) it calls the edits endpoint, otherwise generations. Every result is saved under the temp directory and returned inline with its path.
+export const toolImageGen: Extension;
 // Extension to give the agent search tool: sematic search based on Exa API.
 export const toolSearch: Extension;
 // Extension to give the agent bash tool: run bash commands.

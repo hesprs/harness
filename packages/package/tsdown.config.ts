@@ -4,7 +4,7 @@ import raw from 'unplugin-raw/rolldown';
 
 export default defineConfig({
 	deps,
-	dts: { eager: true },
+	dts: { tsc: { eager: true } },
 	entry: 'src/index.ts',
 	minify: true,
 	outExtensions: () => ({ js: '.js' }),
