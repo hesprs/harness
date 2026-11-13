@@ -55,6 +55,15 @@ defineAgent({
 				command: 'cua-driver',
 				env: { CUA_DRIVER_RS_ENABLE_WAYLAND: '1' },
 			},
+			'firefox-devtools': {
+				args: [
+					'@mozilla/firefox-devtools-mcp@latest',
+					'--connect-existing',
+					'--marionette-port',
+					'2828',
+				],
+				command: 'bunx',
+			},
 			snowluma: {
 				args: ['@snowluma/mcp@2.3.4'],
 				command: 'bunx',

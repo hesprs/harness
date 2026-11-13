@@ -226,16 +226,27 @@ const IMAGE_SIGNATURES = [
 	['image/gif', 'R0lGOD'],
 	['image/webp', 'UklGR'],
 ] as const;
-const DATA_URI = /^data:(?<mime>[^;,]+);base64,(?<data>[A-Za-z0-9+/]+={0,2})$/u;
+/**
+ * Pi's URL parse in one pattern: any-casing `data:` scheme, a MIME that may be empty or carry
+ * parameters, then the `;base64,` payload.
+ */
+const DATA_URI = /^data:[^,]*;base64,(?<data>[A-Za-z0-9+/]+={0,2})$/iu;
 
 function image(value: unknown): void {
 	let url: string | undefined;
 	if (typeof value === 'string') url = value;
 	else if (value && typeof value === 'object') {
-		const candidate = value as { image_url?: unknown; type?: unknown; data?: unknown };
+		const candidate = value as {
+			image_url?: unknown;
+			type?: unknown;
+			data?: unknown;
+			mimeType?: unknown;
+		};
 		if (typeof candidate.image_url === 'string') url = candidate.image_url;
-		else if (candidate.type === 'image' && typeof candidate.data === 'string')
-			url = `data:;base64,${candidate.data}`;
+		else if (candidate.type === 'image' && typeof candidate.data === 'string') {
+			const mime = typeof candidate.mimeType === 'string' ? candidate.mimeType : '';
+			url = `data:${mime};base64,${candidate.data}`;
+		}
 	}
 	if (typeof url !== 'string' || url === '') throw new TypeError(IMAGE_EXPECTS);
 	const match = DATA_URI.exec(url.replaceAll(/\s+/gu, ''));

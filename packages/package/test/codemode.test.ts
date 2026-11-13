@@ -80,3 +80,88 @@ test('executeInBun returns early from a conditional top-level return', async () 
 	if (!result.ok) throw new Error(result.error.message);
 	expect(result.value).toBe('early');
 });
+
+/** Valid 1x1 PNG, so the emitted block decodes as a real image. */
+const PNG =
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+const runImage = (code: string, tools: Array<{ execute: () => unknown; name: string }> = []) =>
+	executeInBun({ globals: [], timeoutMs: 5000, tools }, code);
+
+test('image() shows a PNG passed as a base64 data URI string', async () => {
+	const result = await runImage(`image('data:image/png;base64,${PNG}');`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() shows an image_url object carrying a data URI', async () => {
+	const result = await runImage(`image({ image_url: 'data:image/png;base64,${PNG}' });`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() shows an image block with its mimeType', async () => {
+	const result = await runImage(
+		`image({ type: 'image', data: '${PNG}', mimeType: 'image/png' });`,
+	);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() shows an image block without a mimeType', async () => {
+	const result = await runImage(`image({ type: 'image', data: '${PNG}' });`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() shows the image block a tool call resolves to', async () => {
+	const result = await runImage(`const b = await tools.read({ path: 'a.png' });\nimage(b);`, [
+		{ execute: () => ({ data: PNG, mimeType: 'image/png', type: 'image' }), name: 'read' },
+	]);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() accepts a data URI with an empty MIME', async () => {
+	const result = await runImage(`image('data:;base64,${PNG}');`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() accepts a data URI with extra parameters', async () => {
+	const result = await runImage(`image('data:image/png;charset=utf-8;base64,${PNG}');`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() accepts an uppercase scheme', async () => {
+	const result = await runImage(`image('DATA:image/png;base64,${PNG}');`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() names the format from the data, not the declared MIME', async () => {
+	const result = await runImage(`image('data:image/jpeg;base64,${PNG}');`);
+	if (!result.ok) throw new Error(result.error.message);
+	expect(result.output).toEqual([{ data: PNG, mimeType: 'image/png', type: 'image' }]);
+});
+
+test('image() rejects a remote URL', async () => {
+	const result = await runImage("image('https://example.com/a.png');");
+	if (result.ok) throw new Error('Expected error result');
+	expect(result.error.message).toContain('invalid image output');
+});
+
+test('image() rejects data that is not a PNG, JPEG, GIF, or WebP', async () => {
+	const result = await runImage("image('data:image/png;base64,AAAA');");
+	if (result.ok) throw new Error('Expected error result');
+	expect(result.error.message).toContain('The image data is not a PNG, JPEG, GIF, or WebP image');
+});
+
+test('image() rejects values that are not images', async () => {
+	for (const code of ['image(42);', "image('');", "image({ type: 'text' });"]) {
+		const result = await runImage(code);
+		if (result.ok) throw new Error(`Expected error result for ${code}`);
+		expect(result.error.message).toContain('image expects a base64 data URI');
+	}
+});

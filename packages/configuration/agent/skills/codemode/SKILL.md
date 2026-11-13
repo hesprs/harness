@@ -1,6 +1,6 @@
 ---
 name: codemode
-description: Orchestrate tool calls with codemode. Read before using codemode.
+description: Usage guidance for the codemode tool. MUST read before using `codemode`.
 pin: https://github.com/earendil-works/pi/blob/7d073328e44337d3292a7db9b0f0308f679c5e97/packages/coding-agent/docs/codemode.md#L4
 ---
 

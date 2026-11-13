@@ -7,7 +7,6 @@
 	"tasks": {
 		"compile": {
 			"dependsOn": ["^compile"],
-			"env": ["GDRIVE_CLIENT_ID", "GDRIVE_CLIENT_SECRET"],
 			"outputs": ["dist/**"],
 			"cache": true
 		},

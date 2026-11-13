@@ -444,20 +444,21 @@ test('displacing a shielded session settles its pending prompt', async () => {
 		const { session } = await createAgentSession({
 			sessionManager: SessionManager.create(process.cwd(), root),
 		});
-		// Hold the turn at the model boundary: no real model call.
+		// Hold the turn at the model boundary: no real model call. Since pi 1.5 the turn starts at
+		// Agent.prompt, and prompt() consults the model runtime first: auth, then selection recording.
 		const host = session as unknown as {
-			// oxlint-disable-next-line eslint/no-underscore-dangle : pi's private field names
-			_modelRuntime: { hasConfiguredAuth: (provider: string) => boolean };
 			// oxlint-disable-next-line eslint/no-underscore-dangle : pi's private field name
-			_runAgentPrompt: (messages: unknown) => Promise<void>;
-			agent: { state: { model: { provider: string; id: string } } };
+			_modelRuntime: { getModel: () => undefined; hasConfiguredAuth: () => boolean };
+			agent: {
+				prompt: (messages: unknown) => Promise<void>;
+				state: { model: { provider: string; id: string } };
+			};
 		};
 		// oxlint-disable-next-line eslint/no-underscore-dangle : pi's private field name
-		host._modelRuntime = { hasConfiguredAuth: () => true };
+		host._modelRuntime = { getModel: () => {}, hasConfiguredAuth: () => true };
 		host.agent.state.model = { id: 'stub', provider: 'stub' };
 		let turnStarted = false;
-		// oxlint-disable-next-line eslint/no-underscore-dangle : pi's private field name
-		host._runAgentPrompt = () => {
+		host.agent.prompt = () => {
 			turnStarted = true;
 			return new Promise<void>(() => {}); // Holds the turn forever
 		};
