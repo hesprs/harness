@@ -35,7 +35,7 @@ export default function toolSpawn(agents: Array<string>): Extension {
 		pi.registerTool(
 			defineTool({
 				description:
-					'Spawn a new agent session and start it with a prompt, like a human user prompting an agent to start a session. Returns the session ID and record file path. Optionally choose a markdown topic context file.',
+					'Spawn a new agent session and start it with a prompt, like a human user prompting an agent to start a session. Returns the session ID and record file path. Optionally choose a markdown topic context file or a custom session ID.',
 				async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 					if (!agents.includes(params.agent))
 						return text(
@@ -47,7 +47,7 @@ export default function toolSpawn(agents: Array<string>): Extension {
 					try {
 						const from =
 							k.bindingOf(ctx.sessionManager.getSessionId())?.sessionId ?? LEADER_ID;
-						const result = await k.spawn(from, params.agent, params.topic);
+						const result = await k.spawn(from, params.agent, params.topic, params.id);
 						// The starting prompt: the spawner's talk starts the new agent's first turn.
 						await k.deliverTalk(from, result.sessionId, params.prompt);
 						return { ...text(JSON.stringify(result)), structuredContent: result };
@@ -63,6 +63,12 @@ export default function toolSpawn(agents: Array<string>): Extension {
 				}),
 				parameters: Type.Object({
 					agent: Type.String({ description: 'Agent name to spawn' }),
+					id: Type.Optional(
+						Type.String({
+							description:
+								'Custom session ID used instead of the auto-generated one; letters and digits plus "-", "_", "."; must start and end with a letter or digit; rejected when already in use',
+						}),
+					),
 					prompt: Type.String({
 						description: 'Starting prompt for the new agent session',
 					}),

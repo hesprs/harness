@@ -16,13 +16,16 @@ import {
 	toolSearch,
 	mcp,
 	toolImageGen,
+	toolSpawn,
 } from '@hesprs/harness';
 import { resolve } from 'node:path';
 
 const p = (path: string) => resolve(import.meta.dirname, path);
 const content = (path: string) => Bun.file(p(path)).text();
-const [workerPrompt, globalPrompt] = await Promise.all([
+const [workerPrompt, explorerPrompt, chancellorPrompt, globalPrompt] = await Promise.all([
 	content('./agents/worker.md'),
+	content('./agents/explorer.md'),
+	content('./agents/chancellor.md'),
 	content('./AGENTS.md'),
 ]);
 
@@ -30,39 +33,54 @@ process.loadEnvFile(p('.env'));
 const SNOWLUMA_MCP_TOKEN = process.env.SNOWLUMA_MCP_TOKEN;
 if (!SNOWLUMA_MCP_TOKEN) throw new Error('No Snowluma token!');
 
-defineBaseAgent({ model: 'zai/glm-5.3-flash', prompt: globalPrompt, thinking: 'high' });
-
-defineAgent({
-	description:
-		'Fast execution specialist. Receives complete context and task spec, completes defined tasks efficiently.',
+defineBaseAgent({
 	extensions: [
+		skill([p('./skills/general'), p('./skills/commands')]),
 		toolCodemode,
 		toolBash,
 		toolFetch,
 		toolRead,
 		toolSearch,
+		toolFind,
+		toolGrep,
+	],
+	model: 'zai/glm-5.3',
+	prompt: globalPrompt,
+});
+
+const worker = defineAgent({
+	description:
+		'Fast execution specialist. Receives complete context and task spec, completes defined tasks efficiently.',
+	extensions: [toolWrite, toolEdit, toolDelete],
+	name: 'worker',
+	prompt: workerPrompt,
+	thinking: 'high',
+});
+
+const explorer = defineAgent({
+	description:
+		'Context-heavy work specialist for fast local codebase, files, external resource and documentation search and analysis.',
+	extensions: [toolWrite, toolEdit, toolDelete],
+	name: 'explorer',
+	prompt: explorerPrompt,
+	thinking: 'medium',
+});
+
+defineAgent({
+	description: 'The orchestrator.',
+	extensions: [
+		toolApplyPatch,
 		// toolWrite,
 		// toolEdit,
 		// toolDelete,
-		toolApplyPatch,
-		toolFind,
-		toolGrep,
+		toolSpawn([worker, explorer]),
+		skill(p('./skills/capabilities')),
 		toolImageGen,
-		skill(p('./skills')),
 		mcp({
 			'cua-driver': {
 				args: ['mcp'],
 				command: 'cua-driver',
 				env: { CUA_DRIVER_RS_ENABLE_WAYLAND: '1' },
-			},
-			'firefox-devtools': {
-				args: [
-					'@mozilla/firefox-devtools-mcp@latest',
-					'--connect-existing',
-					'--marionette-port',
-					'2828',
-				],
-				command: 'bunx',
 			},
 			snowluma: {
 				args: ['@snowluma/mcp@2.3.4'],
@@ -75,7 +93,8 @@ defineAgent({
 			},
 		}),
 	],
-	name: 'worker',
-	prompt: workerPrompt,
+	model: 'openai/gpt-6.1-sol',
+	name: 'chancellor',
+	prompt: chancellorPrompt,
 	thinking: 'high',
 });

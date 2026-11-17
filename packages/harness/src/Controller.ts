@@ -102,9 +102,19 @@ export function talkableSessions(
 	return out;
 }
 
-/** A talk notice injected into a session's input: `` [talk from `A` (leader)] hi ``. */
+/** Local wall-clock time plus its UTC offset hours: `` 2026-11-17 22:15:03 UTC+8 ``. */
+function timestamp(at: Date): string {
+	const two = (n: number) => String(n).padStart(2, '0');
+	const offset = -at.getTimezoneOffset() / 60;
+	return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())} UTC${offset >= 0 ? '+' : '-'}${Math.abs(offset)}`;
+}
+
+/**
+ * A talk notice injected into a session's input: `` [2026-11-17 22:15:03 UTC+8] [talk from `A`
+ * (leader)] hi ``.
+ */
 export function formatTalkNotice(from: string, rel: string, message: string): string {
-	return `[talk from \`${from}\` (${rel})] ${message}`;
+	return `[${timestamp(new Date())}] [talk from \`${from}\` (${rel})] ${message}`;
 }
 
 type EncodedTalk = { content: string; customType: 'talk'; display: true };

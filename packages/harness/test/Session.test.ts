@@ -396,7 +396,12 @@ test('deliver steers a streaming live session, prompts an idle one, sends foregr
 	const idle = (await startedSession()).session;
 	idle.attachLive(live(false));
 	idle.deliver(LEADER_ID, 'leader', 'wake up');
-	expect(actions).toEqual([
+	// The delivery stamp is wall-clock: strip it, then the notices compare exactly.
+	expect(
+		actions.map((a) =>
+			a.replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC[+-]\d+(?:\.\d+)?\] /u, ''),
+		),
+	).toEqual([
 		`steer:[talk from \`${LEADER_ID}\` (leader)] mid-turn`,
 		`prompt:[talk from \`${LEADER_ID}\` (leader)] wake up`,
 	]);
@@ -441,7 +446,8 @@ test('a silent run forwards its plain output to the last agent that talked to it
 	const made = await forwarding();
 	made.session.deliver('worker-b', 'colleague', 'status?');
 	await made.fire('agent_start', {}, made.ctx);
-	await made.fire('turn_end', { turnIndex: 0, ...turn('done') }, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('', 1) }, made.ctx);
+	await made.fire('turn_end', { turnIndex: 1, ...turn('done') }, made.ctx);
 	await made.fire('agent_settled', { aborted: false }, made.ctx);
 	expect(made.talked).toEqual([['worker-abcde', 'worker-b', 'done']]);
 });
@@ -449,9 +455,37 @@ test('a silent run forwards its plain output to the last agent that talked to it
 test('a silent run answers the leader when the leader talked last', async () => {
 	const made = await forwarding();
 	await made.fire('agent_start', {}, made.ctx);
-	await made.fire('turn_end', { turnIndex: 0, ...turn('ok') }, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('', 1) }, made.ctx);
+	await made.fire('turn_end', { turnIndex: 1, ...turn('ok') }, made.ctx);
 	await made.fire('agent_settled', { aborted: false }, made.ctx);
 	expect(made.talked).toEqual([['worker-abcde', LEADER_ID, 'ok']]);
+});
+
+test('a one-turn run is not forwarded: bare replies must not answer each other', async () => {
+	const made = await forwarding();
+	made.session.deliver('worker-b', 'colleague', 'ping');
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('idle') }, made.ctx);
+	await made.fire('agent_settled', { aborted: false }, made.ctx);
+	expect(made.talked).toEqual([]);
+});
+
+test('a rescue owes a reminder that rides the next wake-up', async () => {
+	const made = await forwarding();
+	made.session.deliver('worker-b', 'colleague', 'status?');
+	await made.fire('agent_start', {}, made.ctx);
+	await made.fire('turn_end', { turnIndex: 0, ...turn('', 1) }, made.ctx);
+	await made.fire('turn_end', { turnIndex: 1, ...turn('done') }, made.ctx);
+	await made.fire('agent_settled', { aborted: false }, made.ctx);
+	made.session.deliver('worker-b', 'colleague', 'next');
+	const sent = made.calls.findLast((call) => call.kind === 'sendMessage');
+	expect(JSON.stringify(sent?.value)).toContain('talk');
+	expect(JSON.stringify(sent?.value)).toContain('rescued');
+	// Spent: the wake-up after that carries no reminder.
+	made.session.deliver('worker-b', 'colleague', 'third');
+	expect(
+		JSON.stringify(made.calls.findLast((c) => c.kind === 'sendMessage')?.value),
+	).not.toContain('rescued');
 });
 
 test('a talk in the run suppresses forwarding the plain output', async () => {

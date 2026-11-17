@@ -222,7 +222,9 @@ test('formatLeaderTalk addresses the viewed session from the leader', async () =
 	try {
 		addSession('A');
 		const text = controller.root.formatLeaderTalk('A', 'hello');
-		expect(text).toBe('[talk from `commander-00001` (leader)] hello');
+		expect(text).toMatch(
+			/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC[+-]\d+(?:\.\d+)?\] \[talk from `commander-00001` \(leader\)\] hello$/u,
+		);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -349,7 +351,9 @@ test('relationship: topic members, leader and children', () => {
 });
 
 test('formatTalkNotice and encode/decodeTalk round-trip', () => {
-	expect(formatTalkNotice('A', 'colleague', 'hello')).toBe('[talk from `A` (colleague)] hello');
+	expect(formatTalkNotice('A', 'colleague', 'hello')).toMatch(
+		/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC[+-]\d+(?:\.\d+)?\] \[talk from `A` \(colleague\)\] hello$/u,
+	);
 	const encoded = encodeTalk('A', 'child', 'hi');
 	expect(encoded.customType).toBe('talk');
 	expect(decodeTalk(encoded.content)).toEqual({

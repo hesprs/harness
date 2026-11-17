@@ -1,4 +1,5 @@
 import {
+	claimSessionId,
 	createAppSession,
 	listAppSessions,
 	newSessionId,
@@ -163,10 +164,11 @@ export default class Sessions {
 		from: string,
 		agent: string,
 		topic?: string,
+		id?: string,
 	): Promise<{ sessionId: string; recordPath: string }> => {
 		if (this.appFolder === undefined || this.cwd === undefined)
 			throw new Error('no application session');
-		const sessionId = newSessionId(agent);
+		const sessionId = claimSessionId(this.readMeta(), agent, id);
 		const recordPath = join(this.appFolder, `${sessionId}.jsonl`);
 		let record!: SessionRecord;
 		this.writeMeta((meta) => {
@@ -306,8 +308,12 @@ export default class Sessions {
 	/**
 	 * Create a background SDK session continuing `record` and bind its identity. Built from the
 	 * host's module so the session can later be adopted by the interactive runtime (see
-	 * ./patch.ts). SDK sessions do not load built-in extensions, so `createMcpExtension` is passed
-	 * explicitly — agent definitions that register MCP servers work in background sessions.
+	 * ./patch.ts). Unlike pi's CLI startup, the SDK path adds no built-in extensions (`main`
+	 * prepends `builtInExtensions` to the loader factories), so the ones agent definitions depend
+	 * on are enumerated here: `codemode` serves `toolCodemode`, `mcp` serves registered MCP
+	 * servers, and `tool-search` serves deferred MCP exposure. `builtin: true` keeps them subject
+	 * to the `builtin:<name>` settings entries. Add a builtin here with the first definition that
+	 * needs it.
 	 */
 	private async createBackground(record: SessionRecord): Promise<LiveSession> {
 		if (this.appFolder === undefined || this.cwd === undefined)
@@ -317,17 +323,33 @@ export default class Sessions {
 		const sessionManager = pi.SessionManager.open(record.recordPath, undefined, this.cwd);
 		this.bindings.set(sessionManager.getSessionId(), bindingOf(this.appFolder, record));
 		const agentDir = pi.getAgentDir();
+		const settingsManager = pi.SettingsManager.create(this.cwd, agentDir);
 		const resourceLoader = new pi.DefaultResourceLoader({
 			agentDir,
 			cwd: this.cwd,
-			extensionFactories: [pi.createMcpExtension()],
-			settingsManager: pi.SettingsManager.create(this.cwd, agentDir),
+			extensionFactories: [
+				{
+					builtin: true,
+					factory: pi.createCodemodeExtension(),
+					name: 'codemode',
+					replaceable: true,
+				},
+				{
+					builtin: true,
+					factory: pi.createToolSearchExtension(),
+					name: 'tool-search',
+					replaceable: true,
+				},
+				{ builtin: true, factory: pi.createMcpExtension(), name: 'mcp', replaceable: true },
+			],
+			settingsManager,
 		});
 		await resourceLoader.reload();
 		const { session } = await pi.createAgentSession({
 			cwd: this.cwd,
 			resourceLoader,
 			sessionManager,
+			settingsManager,
 		});
 		await session.bindExtensions({});
 		return session;

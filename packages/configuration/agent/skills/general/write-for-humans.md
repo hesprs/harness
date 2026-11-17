@@ -1,7 +1,6 @@
 ---
 name: write-for-humans
-description: Rewrite AI-sounding text so it reads like the writer without changing what it says.
-disable-model-invocation: true
+description: Rewrite AI-sounding text so it reads like the writer without changing what it says. Use before writing any text designed to be read formally by humans. Do not use when authoring simple talk messages, code /  commit comments, or temp documents.
 pin: https://github.com/blader/humanizer/blob/0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0/SKILL.md
 ---
 

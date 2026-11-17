@@ -1,4 +1,5 @@
 import {
+	claimSessionId,
 	createAppSession,
 	listAppSessions,
 	newSessionId,
@@ -6,6 +7,7 @@ import {
 	registerSession,
 	topicCascade,
 } from '@/model';
+import { LEADER_ID } from '@repo/shared/contract';
 import { test, expect } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -68,6 +70,30 @@ test('newSessionId is agent-prefixed, unique and hash-suffixed', () => {
 	const b = newSessionId('test');
 	expect(a).toMatch(/^test-[a-z0-9]{5}$/u);
 	expect(a).not.toBe(b);
+});
+
+test('claimSessionId returns a free custom id unchanged', () => {
+	const meta = metaWith(session({ id: 'other-1' }));
+	expect(claimSessionId(meta, 'coder', 'builder-1')).toBe('builder-1');
+});
+
+test('claimSessionId allocates an agent-prefixed id when none is given', () => {
+	expect(claimSessionId(metaWith(), 'coder')).toMatch(/^coder-[a-z0-9]{5}$/u);
+});
+
+test('claimSessionId rejects an id already in use', () => {
+	const meta = metaWith(session({ id: 'builder-1' }));
+	expect(() => claimSessionId(meta, 'coder', 'builder-1')).toThrow('session id already in use');
+});
+
+test('claimSessionId rejects malformed ids', () => {
+	for (const id of ['../escape', 'has space', 'a/b', String.raw`a\b`, '.hidden', 'trailing.', ''])
+		expect(() => claimSessionId(metaWith(), 'coder', id)).toThrow('invalid session id');
+});
+
+test('claimSessionId rejects reserved ids', () => {
+	for (const id of [LEADER_ID, 'new'])
+		expect(() => claimSessionId(metaWith(), 'coder', id)).toThrow('reserved session id');
 });
 
 test('registerSession: first agent in a topic makes the spawner the leader', () => {

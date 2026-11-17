@@ -3,6 +3,7 @@
  * state; all mutation happens through the Sessions module (single writer by construction).
  * Relationships and talkable-agent semantics live in the Controller; handoff in ./patch.ts.
  */
+import { LEADER_ID } from '@repo/shared/contract';
 import { readdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -83,6 +84,22 @@ export async function listAppSessions(root: string): Promise<Array<AppMeta>> {
 /** Register a session in an application session: allocate `<agent>-<hash>` id. */
 export function newSessionId(agent: string): string {
 	return `${agent}-${crypto.randomUUID().replaceAll('-', '').slice(0, 5)}`;
+}
+
+/**
+ * The session id for a spawn: the caller's when valid, else a fresh allocation. A custom id becomes
+ * a file name inside the app folder and a meta.json key, so pi's own session-id rule applies (regex
+ * inlined: pi does not export assertValidSessionId from its package root); the leader id would
+ * corrupt talk routing, `new` is the /shift menu sentinel, and a taken id would silently replace
+ * the existing session's record.
+ */
+export function claimSessionId(meta: AppMeta, agent: string, id?: string): string {
+	if (id === undefined) return newSessionId(agent);
+	if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/u.test(id))
+		throw new Error(`invalid session id: ${id}`);
+	if (id === LEADER_ID || id === 'new') throw new Error(`reserved session id: ${id}`);
+	if (meta.sessions[id] !== undefined) throw new Error(`session id already in use: ${id}`);
+	return id;
 }
 
 export type RegisterSessionOptions = {

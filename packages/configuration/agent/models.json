@@ -4,35 +4,6 @@
 		"openai": { "baseUrl": "https://api.a6api.vip", "api": "openai-completions" },
 		"qwen-token-plan": { "baseUrl": "https://api.a6api.vip" },
 		"zai": { "baseUrl": "https://api.a6api.vip" },
-		"custom": {
-			"api": "openai-completions",
-			"baseUrl": "https://api.a6api.vip",
-			"models": [
-				{
-					"id": "deepseek-v4.1-flash-1017",
-					"name": "DeepSeek V4.1 Flash 1017",
-					"reasoning": true,
-					"thinkingLevelMap": {
-						"minimal": null,
-						"low": "low",
-						"medium": null,
-						"high": "high",
-						"max": "max"
-					},
-					"input": ["text", "image"],
-					"cost": { "input": 0.3, "output": 1.2, "cacheRead": 0.006, "cacheWrite": 0 },
-					"contextWindow": 1000000,
-					"maxTokens": 384000,
-					"compat": {
-						"supportsStore": false,
-						"supportsDeveloperRole": false,
-						"maxTokensField": "max_tokens",
-						"requiresReasoningContentOnAssistantMessages": true,
-						"thinkingFormat": "deepseek",
-						"supportsStrictMode": true
-					}
-				}
-			]
-		}
+		"custom": { "api": "openai-completions", "baseUrl": "https://api.a6api.vip", "models": [] }
 	}
 }

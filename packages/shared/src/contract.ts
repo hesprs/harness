@@ -27,6 +27,7 @@ export type KernelContract = {
 		from: string,
 		agent: string,
 		topic?: string,
+		id?: string,
 	) => Promise<{ sessionId: string; recordPath: string }>;
 	deliverTalk: (from: string, to: string, message: string) => Promise<void>;
 	bindingOf: (piSessionId: string) => { sessionId: string; appFolder: string } | undefined;

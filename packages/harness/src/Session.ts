@@ -21,7 +21,13 @@ import type {
 import type { TalkableInfoEvent } from '@repo/shared/contract';
 import type { FSWatcher } from 'node:fs';
 
-const TALK_DESCRIPTION = `Send a message to one or more agents. Other agents communicate to you using this tool, you MUST communicate using this tool also; plain output only reaches whoever talked to you last. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, simply stop after talking without further tool calls; any incoming talks will wake you up.`;
+const TALK_DESCRIPTION = `Send a message to one or more agents, rendered as GitHub-flavored markdown. Other agents communicate to you using this tool, you MUST communicate using only this tool; plain output is meaningless and not delivered to anyone. Delivery is asynchronous: your turn continues immediately, and any reply arrives later as another talk to you. If you want to wait for reply, stop after talking without further tool calls; any incoming talk wakes you up.`;
+
+/**
+ * Attached to this session's next prompt after a rescue: the fallback is not a substitute for
+ * `talk`.
+ */
+const TALK_REMINDER = `Your last plain output was not sent: plain output reaches nobody, and the harness only rescued it this once. Every answer to another agent MUST goes through the \`talk\` tool.`;
 
 const WORKING_STYLE = `You are an AI agent working with autonomy. You complete your tasks with high quality, and communicate with other agents smartly.`;
 
@@ -87,6 +93,8 @@ export default class Session {
 	private lastTalker?: string;
 	/** Output to forward when the run settles: the last turn's, when that turn called no tool. */
 	private forward?: string;
+	/** Talk reminder owed to this session: attached to the next prompt that wakes it. */
+	private talkReminder = false;
 
 	constructor(
 		private readonly pi: ExtensionAPI,
@@ -119,18 +127,32 @@ export default class Session {
 	/**
 	 * The run is over with a plain output: forward it to whoever talked last, unless this agent
 	 * talked inside the window (the last five turns, or the whole run when it is shorter) — so a
-	 * silent agent always answers its interlocutor.
+	 * silent agent always answers its interlocutor. A one-turn run is not forwarded: a bare reply
+	 * with no tool work is how agents idle at each other, and forwarding those lets two agents that
+	 * never call `talk` answer each other forever.
 	 */
 	private async settle(event: AgentSettledEvent): Promise<void> {
 		const output = this.forward;
 		this.forward = undefined;
 		if (event.aborted || output === undefined) return;
+		if (this.turns < 2) return;
 		if (this.sessionId === undefined || this.lastTalker === undefined) return;
 		const window = Math.min(5, this.turns);
 		if (this.talkTurn !== undefined && this.turns - 1 - this.talkTurn < window) return;
 		this.talkTurn = this.turns - 1;
-		// The interlocutor may be gone (deleted session): a dropped forward is not a failure.
-		await this.kernel.deliverTalk(this.sessionId, this.lastTalker, output).catch(() => {});
+		try {
+			await this.kernel.deliverTalk(this.sessionId, this.lastTalker, output);
+		} catch {
+			return; // The interlocutor may be gone (deleted session): a dropped forward is not a failure.
+		}
+		this.talkReminder = true;
+	}
+
+	/** Attach the owed talk reminder to the next prompt: the wake-up is its only useful place. */
+	private withReminder(txt: string): string {
+		if (!this.talkReminder) return txt;
+		this.talkReminder = false;
+		return `${txt}\n\n${TALK_REMINDER}`;
 	}
 
 	/** Bind this session's identity and apply the agent definition. */
@@ -289,7 +311,6 @@ export default class Session {
 		const identity = [
 			`Application session: \`${this.appFolder ?? ''}\``,
 			`Your ID: \`${this.sessionId ?? ''}\``,
-			`Current date: ${fmt.format(new Date())}`,
 			...(this.topic === undefined ? [] : [`Topic: \`${this.topic}\``]),
 		].join('\n');
 		const instructions = [WORKING_STYLE, ...(this.kernel.get(this.agent)?.prompts ?? [])].join(
@@ -336,7 +357,7 @@ export default class Session {
 		this.kernel.captureFirstMessage(event.text);
 		return {
 			action: 'transform',
-			text: this.kernel.formatLeaderTalk(this.sessionId, event.text),
+			text: this.withReminder(this.kernel.formatLeaderTalk(this.sessionId, event.text)),
 		};
 	}
 
@@ -387,14 +408,15 @@ export default class Session {
 	 */
 	deliver(from: string, rel: string, message: string): void {
 		this.lastTalker = from;
+		const reminded = this.withReminder(message);
 		if (this.live !== undefined) {
-			const notice = formatTalkNotice(from, rel, message);
+			const notice = formatTalkNotice(from, rel, reminded);
 			void (this.live.isStreaming
 				? this.live.steer(notice)
 				: this.live.prompt(notice, { source: 'extension' }));
 			return;
 		}
-		this.pi.sendMessage(encodeTalk(from, rel, message), {
+		this.pi.sendMessage(encodeTalk(from, rel, reminded), {
 			deliverAs: 'steer',
 			triggerTurn: true,
 		});

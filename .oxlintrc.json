@@ -123,18 +123,11 @@
 		"unicorn/no-process-exit": "off",
 		"eslint/one-var": ["warn", "never"],
 		"unicorn/max-nested-calls": ["warn", { "max": 5 }],
-		"import/no-nodejs-modules": "off"
+		"import/no-nodejs-modules": "off",
+		"unicorn/no-array-reduce": "off"
 	},
-	"env": {
-		"builtin": true,
-		"browser": true,
-		"vue": true,
-		"node": true
-	},
-	"globals": {
-		"Bun": "readonly",
-		"process": "readonly"
-	},
+	"env": { "builtin": true, "browser": true, "vue": true, "node": true },
+	"globals": { "Bun": "readonly", "process": "readonly" },
 	"overrides": [
 		{
 			"files": ["*.test.ts"],
@@ -164,8 +157,5 @@
 		}
 	],
 	"ignorePatterns": ["**/node_modules/**", "**/dist/**"],
-	"options": {
-		"typeAware": true,
-		"typeCheck": true
-	}
+	"options": { "typeAware": true, "typeCheck": true }
 }
