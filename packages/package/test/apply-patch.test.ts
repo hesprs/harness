@@ -1,4 +1,4 @@
-import { applyPatch } from '@/tools/apply-patch.ts';
+import { applyPatch, ApplyPatchError } from '@/tools/file/apply-patch.ts';
 import { test, expect } from 'bun:test';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -105,6 +105,114 @@ test('the summary lists applied changes', async () => {
 			`*** Begin Patch\n*** Add File: x.txt\n+X\n*** End Patch`,
 		);
 		expect(result.summary).toContain('x.txt');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('chunks apply in any order', async () => {
+	const root = tmpRoot();
+	try {
+		await Bun.write(join(root, 'a.txt'), 'one\ntwo\nthree\n');
+		await applyPatch(
+			root,
+			`*** Begin Patch\n*** Update File: a.txt\n@@\n-three\n+THREE\n@@\n-one\n+ONE\n*** End Patch`,
+		);
+		expect(await Bun.file(join(root, 'a.txt')).text()).toBe('ONE\ntwo\nTHREE\n');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('identical chunks each claim their own occurrence', async () => {
+	const root = tmpRoot();
+	try {
+		await Bun.write(join(root, 'dup.txt'), 'x\ny\nx\n');
+		await applyPatch(
+			root,
+			`*** Begin Patch\n*** Update File: dup.txt\n@@\n-x\n+first\n@@\n-x\n+second\n*** End Patch`,
+		);
+		expect(await Bun.file(join(root, 'dup.txt')).text()).toBe('first\ny\nsecond\n');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('applicable hunks are applied before the aggregate error names both sides', async () => {
+	const root = tmpRoot();
+	try {
+		await Bun.write(join(root, 'stale.txt'), 'actual\n');
+		let thrown: unknown;
+		await applyPatch(
+			root,
+			[
+				'*** Begin Patch',
+				'*** Update File: stale.txt',
+				'@@',
+				'-nowhere',
+				'+new',
+				'*** Add File: fresh.txt',
+				'+fresh',
+				'*** End Patch',
+			].join('\n'),
+		).catch((error: unknown) => {
+			thrown = error;
+		});
+		expect(thrown).toBeInstanceOf(ApplyPatchError);
+		const error = thrown as ApplyPatchError;
+		expect(error.message).toContain('1 of 2 file actions failed.');
+		expect(error.message).toContain(
+			'- stale.txt (update): Failed to find expected lines in stale.txt:',
+		);
+		expect(error.message).toContain('Recovery: MUST read stale.txt before retrying.');
+		expect(error.message).toContain('Applied:');
+		expect(error.message).toContain('- add: fresh.txt');
+		expect(error.message).toContain(
+			'Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it.',
+		);
+		expect(error.appliedSummaries).toEqual(['add: fresh.txt']);
+		expect(error.failures[0]?.code).toBeUndefined();
+		expect(error.failures[0]?.filePath).toBe('stale.txt');
+		expect(await Bun.file(join(root, 'fresh.txt')).text()).toBe('fresh\n');
+		expect(await Bun.file(join(root, 'stale.txt')).text()).toBe('actual\n');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('a filesystem failure is reported without a reread instruction', async () => {
+	const root = tmpRoot();
+	try {
+		let thrown: unknown;
+		await applyPatch(
+			root,
+			`*** Begin Patch\n*** Update File: missing.txt\n@@\n+x\n*** End Patch`,
+		).catch((error: unknown) => {
+			thrown = error;
+		});
+		expect(thrown).toBeInstanceOf(ApplyPatchError);
+		const error = thrown as ApplyPatchError;
+		expect(error.message).toContain('1 of 1 file actions failed.');
+		expect(error.message).toContain('- missing.txt (update):');
+		expect(error.message).not.toContain('Recovery: MUST read');
+		expect(error.failures[0]?.code).toBe('ENOENT');
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('a file whose update has a failing chunk is not written at all', async () => {
+	const root = tmpRoot();
+	try {
+		await Bun.write(join(root, 'a.txt'), 'one\ntwo\n');
+		// oxlint-disable-next-line typescript/await-thenable
+		await expect(
+			applyPatch(
+				root,
+				`*** Begin Patch\n*** Update File: a.txt\n@@\n-one\n+ONE\n@@\n-nowhere\n+X\n*** End Patch`,
+			),
+		).rejects.toThrow();
+		expect(await Bun.file(join(root, 'a.txt')).text()).toBe('one\ntwo\n');
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}

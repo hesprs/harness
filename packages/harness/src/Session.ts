@@ -31,8 +31,6 @@ const TALK_REMINDER = `Your last plain output was not sent: plain output reaches
 
 const WORKING_STYLE = `You are an AI agent working with autonomy. You complete your tasks with high quality, and communicate with other agents smartly.`;
 
-const fmt = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-
 /** Assistant text of a turn's message ('' when it has none). */
 function assistantText(message: TurnEndEvent['message']): string {
 	if (message.role !== 'assistant') return '';
@@ -391,7 +389,6 @@ export default class Session {
 					message: Type.String({ description: 'Message content' }),
 					to: Type.Union([
 						Type.String({ description: 'Target agent ID' }),
-						// oxlint-disable-next-line unicorn/max-nested-calls
 						Type.Array(Type.String(), {
 							description: 'Target agent IDs: the talk is forwarded to each of them',
 						}),

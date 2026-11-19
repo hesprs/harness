@@ -1,16 +1,25 @@
+// oxlint-disable max-lines
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { errText, text } from '@repo/shared/text';
 /**
  * Apply_patch: Codex-style patch envelopes (Add/Update/Delete/Move) applied to the filesystem.
- * Ported from code-yeongyu/pi-apply-patch (parser, chunk seeking with fuzzy fallback, application);
- * TUI preview omitted.
+ * Ported from code-yeongyu/pi-apply-patch (parser, chunk seeking with fuzzy fallback, recovery
+ * instructions); TUI preview omitted. Deviations from upstream: @@ chunks match anywhere in the
+ * file instead of only forward of the previous chunk, and every applicable hunk is applied before
+ * one aggregate error names the failed and the applied actions.
  */
 import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from 'typebox';
-import type { Extension } from '@repo/shared/contract';
 
 export type PatchResult = { summary: string };
+
+export type ApplyPatchFailure = {
+	code?: string;
+	filePath: string;
+	message: string;
+	operation: 'add' | 'delete' | 'update';
+};
 
 type ParsedPatch =
 	| { type: 'add'; filePath: string; content: string }
@@ -38,8 +47,66 @@ export class PatchApplicationError extends Error {
 	}
 }
 
-function hasErrorCode(error: unknown, code: string): boolean {
-	return Boolean(error && typeof error === 'object' && 'code' in error && error.code === code);
+/** One patch's outcome after every applicable hunk was applied: the failures, plus what landed. */
+export class ApplyPatchError extends Error {
+	readonly appliedSummaries: Array<string>;
+	readonly failures: Array<ApplyPatchFailure>;
+	readonly total: number;
+
+	constructor(
+		failures: Array<ApplyPatchFailure>,
+		appliedSummaries: Array<string>,
+		appliedFiles: Array<string>,
+		total: number,
+	) {
+		super(failureMessage(failures, appliedSummaries, appliedFiles, total));
+		this.name = 'ApplyPatchError';
+		this.appliedSummaries = appliedSummaries;
+		this.failures = failures;
+		this.total = total;
+	}
+}
+
+/** Aggregate failure text: what failed, upstream's recovery wording, and what still applied. */
+function failureMessage(
+	failures: Array<ApplyPatchFailure>,
+	appliedSummaries: Array<string>,
+	appliedFiles: Array<string>,
+	total: number,
+): string {
+	// Upstream pi-apply-patch: failures without a filesystem error code are context mismatches; a
+	// Reread fixes those, not ENOENT/EACCES, and applied files must not be reread.
+	const mustReadFiles = [
+		...new Set(
+			failures
+				.filter((failure) => failure.code === undefined)
+				.map((failure) => failure.filePath),
+		),
+	];
+	const lines: Array<string> = [
+		`apply_patch failed: ${failures.length} of ${total} file actions failed.`,
+		'Failed:',
+		...failures.map(
+			(failure) => `- ${failure.filePath} (${failure.operation}): ${failure.message}`,
+		),
+	];
+	if (mustReadFiles.length > 0)
+		lines.push(`Recovery: MUST read ${mustReadFiles.join(' and ')} before retrying.`);
+	if (appliedSummaries.length > 0)
+		lines.push('Applied:', ...appliedSummaries.map((summary) => `- ${summary}`));
+	const mustRead = new Set(mustReadFiles);
+	if (appliedFiles.some((filePath) => !mustRead.has(filePath)))
+		lines.push(
+			'Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it.',
+		);
+	return lines.join('\n');
+}
+
+function fsErrorCode(error: unknown): string | undefined {
+	if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string')
+		return error.code;
+
+	return undefined;
 }
 
 function normalizePatchText(patchText: string): string {
@@ -287,20 +354,25 @@ function splitFileLines(content: string): Array<string> {
 	return lines;
 }
 
+/**
+ * Match every chunk anywhere in the file: each @@ group seeks from its own context markers (or the
+ * top) over lines no earlier chunk has claimed, so chunk order in the patch does not matter.
+ */
 function replaceChunks(content: string, filePath: string, chunks: Array<PatchChunk>): string {
 	const originalLines = splitFileLines(content);
 	const replacements: Array<{ start: number; oldLength: number; newLines: Array<string> }> = [];
-	let lineIndex = 0;
+	const claimed: Array<{ end: number; start: number }> = [];
 
 	for (const chunk of chunks) {
+		let searchFrom = 0;
 		for (const changeContext of chunk.changeContexts) {
-			const contextMatch = seekSequence(originalLines, [changeContext], lineIndex, false);
+			const contextMatch = seekSequence(originalLines, [changeContext], searchFrom, false);
 			if (contextMatch === undefined)
 				throw new PatchApplicationError(
 					`Failed to find context '${changeContext}' in ${filePath}`,
 				);
 
-			lineIndex = contextMatch.index + 1;
+			searchFrom = contextMatch.index + 1;
 		}
 
 		if (chunk.oldLines.length === 0) {
@@ -312,20 +384,20 @@ function replaceChunks(content: string, filePath: string, chunks: Array<PatchChu
 
 		let pattern = chunk.oldLines;
 		let newLines = chunk.newLines;
-		let foundAt = seekSequence(originalLines, pattern, lineIndex, chunk.isEndOfFile);
+		let foundAt = seekUnclaimed(originalLines, pattern, searchFrom, chunk.isEndOfFile, claimed);
 		if (foundAt === undefined && pattern.at(-1) === '') {
 			pattern = pattern.slice(0, -1);
 			if (newLines.at(-1) === '') newLines = newLines.slice(0, -1);
 
-			foundAt = seekSequence(originalLines, pattern, lineIndex, chunk.isEndOfFile);
+			foundAt = seekUnclaimed(originalLines, pattern, searchFrom, chunk.isEndOfFile, claimed);
 		}
 		if (foundAt === undefined)
 			throw new PatchApplicationError(
 				`Failed to find expected lines in ${filePath}:\n${chunk.oldLines.join('\n')}`,
 			);
 
-		replacements.push({ newLines, oldLength: pattern.length, start: foundAt.index });
-		lineIndex = foundAt.index + pattern.length;
+		replacements.push({ newLines, oldLength: pattern.length, start: foundAt });
+		claimed.push({ end: foundAt + pattern.length, start: foundAt });
 	}
 
 	const nextLines = [...originalLines];
@@ -336,19 +408,42 @@ function replaceChunks(content: string, filePath: string, chunks: Array<PatchChu
 	return nextLines.join('\n');
 }
 
-async function applySingleHunk(cwd: string, hunk: ParsedPatch): Promise<string> {
+/** First match at or after `start` that does not overlap an already-claimed range. */
+function seekUnclaimed(
+	lines: Array<string>,
+	pattern: Array<string>,
+	start: number,
+	eof: boolean,
+	claimed: Array<{ end: number; start: number }>,
+): number | undefined {
+	let from = start;
+	for (;;) {
+		const found = seekSequence(lines, pattern, from, eof);
+		if (found === undefined) return undefined;
+		const end = found.index + pattern.length;
+		if (!claimed.some((range) => found.index < range.end && range.start < end))
+			return found.index;
+		if (eof) return undefined; // Only the final position can match an end-of-file chunk
+		from = found.index + 1;
+	}
+}
+
+async function applySingleHunk(
+	cwd: string,
+	hunk: ParsedPatch,
+): Promise<{ appliedFile: string; summary: string }> {
 	const absolutePath = path.resolve(cwd, hunk.filePath);
 
 	if (hunk.type === 'add') {
 		await mkdir(path.dirname(absolutePath), { recursive: true });
 		await Bun.write(absolutePath, hunk.content);
-		return `add: ${hunk.filePath}`;
+		return { appliedFile: hunk.filePath, summary: `add: ${hunk.filePath}` };
 	}
 
 	if (hunk.type === 'delete') {
 		await stat(absolutePath);
 		await rm(absolutePath);
-		return `delete: ${hunk.filePath}`;
+		return { appliedFile: hunk.filePath, summary: `delete: ${hunk.filePath}` };
 	}
 
 	const absoluteMovePath =
@@ -364,27 +459,42 @@ async function applySingleHunk(cwd: string, hunk: ParsedPatch): Promise<string> 
 		await Bun.write(absoluteMovePath, nextContent);
 		if (absoluteMovePath !== absolutePath) await rm(absolutePath);
 
-		return `move: ${hunk.filePath} -> ${hunk.movePath}`;
+		return {
+			appliedFile: hunk.movePath,
+			summary: `move: ${hunk.filePath} -> ${hunk.movePath}`,
+		};
 	}
 
 	await Bun.write(absolutePath, nextContent);
-	return `update: ${hunk.filePath}`;
+	return { appliedFile: hunk.filePath, summary: `update: ${hunk.filePath}` };
 }
 
-/** Apply a patch body relative to `root`. Throws on malformed or failing patches. */
+/**
+ * Apply a patch body relative to `root`. Malformed patches throw before anything is applied; a hunk
+ * that fails is recorded while every other hunk still lands, then one aggregate error names the
+ * failed and the applied actions.
+ */
 export async function applyPatch(root: string, patch: string): Promise<PatchResult> {
+	const hunks = parseNonEmptyPatch(patch);
 	const summaries: Array<string> = [];
-	for (const hunk of parseNonEmptyPatch(patch))
+	const appliedFiles: Array<string> = [];
+	const failures: Array<ApplyPatchFailure> = [];
+	for (const hunk of hunks)
 		try {
-			summaries.push(await applySingleHunk(root, hunk));
+			const { appliedFile, summary } = await applySingleHunk(root, hunk);
+			summaries.push(summary);
+			appliedFiles.push(appliedFile);
 		} catch (error) {
-			if (hasErrorCode(error, 'ENOENT'))
-				throw new PatchApplicationError(
-					`file not found while applying patch: ${String(error)}`,
-				);
-
-			throw error;
+			failures.push({
+				code: fsErrorCode(error),
+				filePath: hunk.filePath,
+				message: errText(error),
+				operation: hunk.type,
+			});
 		}
+
+	if (failures.length > 0)
+		throw new ApplyPatchError(failures, summaries, appliedFiles, hunks.length);
 
 	return { summary: summaries.join('\n') };
 }
@@ -412,35 +522,56 @@ eof_line: "*** End of File" LF
 %import common.LF
 `;
 
-// Extension that registers the freeform `apply_patch` tool.
-export const toolApplyPatch: Extension = (pi) => {
-	const tool = defineTool({
-		description: FREEFORM_DESCRIPTION,
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			try {
-				const result = await applyPatch(ctx.cwd, params.input);
-				return { ...text(result.summary), structuredContent: result };
-			} catch (error) {
-				return text(`apply_patch failed: ${errText(error)}`, true);
-			}
-		},
-		label: 'ApplyPatch',
-		name: 'apply_patch',
-		outputSchema: Type.Object({
-			summary: Type.String({
-				description: 'Per-file operation summary (add/delete/update/move)',
-			}),
+// The `apply_patch` tool: registered by `toolFile` (index.ts), active only for GPT models.
+export const applyPatchTool = defineTool({
+	constrainedSampling: { type: 'grammar', variants: { openai_lark: LARK_GRAMMAR } },
+	description: FREEFORM_DESCRIPTION,
+	async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		try {
+			const result = await applyPatch(ctx.cwd, params.input);
+			return { ...text(result.summary), structuredContent: result };
+		} catch (error) {
+			if (error instanceof ApplyPatchError)
+				return {
+					...text(error.message, true),
+					structuredContent: {
+						failures: error.failures,
+						summary: error.appliedSummaries.join('\n'),
+					},
+				};
+
+			return text(`apply_patch failed: ${errText(error)}`, true);
+		}
+	},
+	label: 'ApplyPatch',
+	name: 'apply_patch',
+	outputSchema: Type.Object({
+		failures: Type.Optional(
+			Type.Array(
+				Type.Object({
+					code: Type.Optional(
+						Type.String({
+							description: 'Filesystem error code; absent for context mismatches',
+						}),
+					),
+					filePath: Type.String({ description: 'File the failed action targeted' }),
+					message: Type.String({ description: 'Why the action failed' }),
+					operation: Type.String({
+						description: 'Failed action: add, delete, or update',
+					}),
+				}),
+				{ description: 'Failed file actions; absent when the whole patch applied' },
+			),
+		),
+		summary: Type.String({
+			description:
+				'Per-file operation summary (add/delete/update/move) of the applied actions',
 		}),
-		parameters: Type.Object({
-			input: Type.String({ description: 'The entire apply_patch command' }),
-		}),
-		prepareArguments: (args: unknown) =>
-			typeof args === 'string' ? { input: args } : (args as { input: string }),
-		promptSnippet: 'Apply Codex-format file patches with apply_patch',
-	});
-	pi.registerTool(
-		Object.assign(tool, {
-			freeform: { definition: LARK_GRAMMAR, syntax: 'lark', type: 'grammar' },
-		}),
-	);
-};
+	}),
+	parameters: Type.Object({
+		input: Type.String({ description: 'The entire apply_patch command' }),
+	}),
+	prepareArguments: (args: unknown) =>
+		typeof args === 'string' ? { input: args } : (args as { input: string }),
+	promptSnippet: 'Apply Codex-format file patches with apply_patch',
+});

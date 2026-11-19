@@ -19,14 +19,12 @@ export function defineAgent(args: NamedAgentArgs): string {
 export { LEADER_ID } from '@repo/shared/contract';
 export { default as personalNote } from '@/note.ts';
 export { default as skill } from '@/skill.ts';
-export { toolEdit } from '@/tools/edit.ts';
 export { toolRead } from '@/tools/read.ts';
-export { toolWrite, toolBash, toolFind, toolGrep } from '@/tools/builtin.ts';
+export { toolBash, toolFind, toolGrep } from '@/tools/builtin.ts';
 export { toolCodemode } from '@/tools/codemode.ts';
-export { toolDelete } from '@/tools/delete.ts';
 export { toolFetch } from '@/tools/fetch.ts';
+export { toolFile } from '@/tools/file/index.ts';
 export { toolImageGen } from '@/tools/image-gen.ts';
 export { toolSearch } from '@/tools/search.ts';
-export { toolApplyPatch } from '@/tools/apply-patch.ts';
 export { mcp } from '@/tools/mcp.ts';
 export { default as toolSpawn } from '@/tools/spawn.ts';

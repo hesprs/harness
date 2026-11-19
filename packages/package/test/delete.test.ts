@@ -1,5 +1,5 @@
 import { tmpRoot } from './utils';
-import { deletePath } from '@/tools/delete';
+import { deletePath } from '@/tools/file/edit-write-delete';
 import { test, expect } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';

@@ -1,5 +1,5 @@
 import { tmpRoot } from './utils';
-import { applyEdits, editFile } from '@/tools/edit.ts';
+import { applyEdits, editFile } from '@/tools/file/edit-write-delete.ts';
 import { test, expect } from 'bun:test';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';

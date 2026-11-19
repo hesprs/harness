@@ -3,13 +3,10 @@ import {
 	defineAgent,
 	defineBaseAgent,
 	skill,
-	toolApplyPatch,
 	toolBash,
 	toolCodemode,
-	toolDelete,
-	toolEdit,
-	toolWrite,
 	toolFetch,
+	toolFile,
 	toolFind,
 	toolGrep,
 	toolRead,
@@ -43,6 +40,7 @@ defineBaseAgent({
 		toolSearch,
 		toolFind,
 		toolGrep,
+		toolFile,
 	],
 	model: 'zai/glm-5.3',
 	prompt: globalPrompt,
@@ -51,7 +49,6 @@ defineBaseAgent({
 const worker = defineAgent({
 	description:
 		'Fast execution specialist. Receives complete context and task spec, completes defined tasks efficiently.',
-	extensions: [toolWrite, toolEdit, toolDelete],
 	name: 'worker',
 	prompt: workerPrompt,
 	thinking: 'high',
@@ -60,7 +57,6 @@ const worker = defineAgent({
 const explorer = defineAgent({
 	description:
 		'Context-heavy work specialist for fast local codebase, files, external resource and documentation search and analysis.',
-	extensions: [toolWrite, toolEdit, toolDelete],
 	name: 'explorer',
 	prompt: explorerPrompt,
 	thinking: 'medium',
@@ -69,10 +65,6 @@ const explorer = defineAgent({
 defineAgent({
 	description: 'The orchestrator.',
 	extensions: [
-		toolApplyPatch,
-		// toolWrite,
-		// toolEdit,
-		// toolDelete,
 		toolSpawn([worker, explorer]),
 		skill(p('./skills/capabilities')),
 		toolImageGen,

@@ -5,20 +5,9 @@
 	"concurrency": "100%",
 	"agentGuidance": false,
 	"tasks": {
-		"compile": {
-			"dependsOn": ["^compile"],
-			"outputs": ["dist/**"],
-			"cache": true
-		},
-		"fix": {
-			"dependsOn": [],
-			"cache": true
-		},
-		"check": {
-			"cache": true
-		},
-		"tests": {
-			"cache": true
-		}
+		"compile": { "dependsOn": ["^compile"], "outputs": ["dist/**"], "cache": true },
+		"fix": { "dependsOn": [], "cache": true },
+		"check": { "cache": true },
+		"tests": { "cache": true }
 	}
 }

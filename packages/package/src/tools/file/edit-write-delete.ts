@@ -1,17 +1,24 @@
-import { defineTool } from '@earendil-works/pi-coding-agent';
-import { errText, text } from '@repo/shared/text';
-import { Type } from 'typebox';
 /**
- * Fuzzy edit tool: replaces Pi's built-in exact-match editor (a same-named extension tool wins in
- * Pi's tool registry). Matching first tries the exact substring, then a whitespace-less pass: every
- * whitespace character is stripped from both sides. and a fuzzy match always replaces whole lines
+ * The write/edit/delete toolset for non-GPT models. `edit` overrides Pi's built-in exact-match
+ * editor (a same-named extension tool wins in Pi's tool registry), `delete` is the harness's own
+ * file deletion, and `write` stays Pi's built-in, switched on by name only. `toolFile` (index.ts)
+ * registers the tools and keeps exactly one of the two editing toolsets active per model.
+ *
+ * Fuzzy edit tool: matching first tries the exact substring, then a whitespace-less pass: every
+ * whitespace character is stripped from both sides, and a fuzzy match always replaces whole lines
  * of real file text — never the query. An ambiguous match is reported with 1-indexed line numbers
  * instead of guessing; per-edit `replaceAll` opts into every occurrence instead. All edits in one
  * call match the original content (not incrementally) and apply bottom-up. A bad edit never sinks
  * the others: it is skipped and named in `failures`, while the matchable ones still land and are
  * named in `applied`.
+ *
+ * Delete tool: removes a file. The harness watches session record and topic files on its own and
+ * reacts to their deletion — this tool knows nothing about sessions.
  */
-import type { Extension } from '@repo/shared/contract';
+import { defineTool } from '@earendil-works/pi-coding-agent';
+import { errText, text } from '@repo/shared/text';
+import { unlink } from 'node:fs/promises';
+import { Type } from 'typebox';
 import type { Static } from 'typebox';
 
 /** One targeted replacement. */
@@ -213,6 +220,12 @@ export async function editFile(
 	return { applied: applied.applied, diff: applied.diff, failures: applied.failures };
 }
 
+export async function deletePath(path: string): Promise<string> {
+	if (!(await Bun.file(path).exists())) throw new Error(`file not found: ${path}`);
+	await unlink(path);
+	return `File ${path} deleted`;
+}
+
 const editItemSchema = Type.Object({
 	newText: Type.String({ description: 'Replacement text.' }),
 	oldText: Type.String({
@@ -236,63 +249,74 @@ const editOutputSchema = Type.Object({
 
 type EditOutput = Static<typeof editOutputSchema>;
 
-// Extension that registers the fuzzy `edit` tool, overriding Pi's built-in.
-export const toolEdit: Extension = (pi) => {
-	pi.registerTool(
-		defineTool({
+// The fuzzy `edit` tool: registered by `toolFile`, overriding Pi's built-in.
+export const editTool = defineTool({
+	description:
+		'Edit a file by targeted text replacement. Each edit is matched against the original file, oldText should match file content. For ambiguous oldText (many matches), add surrounding context or set replaceAll. Use this and NEVER use Python or Bash to edit files.',
+	async execute(_toolCallId, params) {
+		try {
+			const outcome = await editFile(params.path, params.edits);
+			const structuredContent: EditOutput = {
+				applied: outcome.applied,
+				...(outcome.diff ? { diff: outcome.diff } : {}),
+				failures: outcome.failures,
+			};
+			if (outcome.failures.length) {
+				const head = outcome.applied.length
+					? `applied ${outcome.applied.length}/${params.edits.length} edit(s) in ${params.path} (edits ${outcome.applied.join(', ')} are written to disk); skipped:`
+					: `no edits applied in ${params.path}:`;
+				return {
+					content: [
+						{
+							text: `${head}\n${outcome.failures.map((f) => `- ${f}`).join('\n')}`,
+							type: 'text' as const,
+						},
+					],
+					details: { diff: outcome.diff },
+					isError: true,
+					structuredContent,
+				};
+			}
+			return {
+				content: [
+					{
+						text: `replaced ${params.edits.length} block(s) in ${params.path}`,
+						type: 'text' as const,
+					},
+				],
+				details: { diff: outcome.diff },
+				structuredContent,
+			};
+		} catch (error) {
+			return text(`could not edit ${params.path}: ${errText(error)}`, true);
+		}
+	},
+	label: 'Edit',
+	name: 'edit',
+	outputSchema: editOutputSchema,
+	parameters: Type.Object({
+		edits: Type.Array(editItemSchema, {
 			description:
-				'Edit a file by targeted text replacement. Each edit is matched against the original file, oldText should match file content. For ambiguous oldText (many matches), add surrounding context or set replaceAll. Use this and NEVER use Python or Bash to edit files.',
-			async execute(_toolCallId, params) {
-				try {
-					const outcome = await editFile(params.path, params.edits);
-					const structuredContent: EditOutput = {
-						applied: outcome.applied,
-						...(outcome.diff ? { diff: outcome.diff } : {}),
-						failures: outcome.failures,
-					};
-					if (outcome.failures.length) {
-						const head = outcome.applied.length
-							? `applied ${outcome.applied.length}/${params.edits.length} edit(s) in ${params.path} (edits ${outcome.applied.join(', ')} are written to disk); skipped:`
-							: `no edits applied in ${params.path}:`;
-						return {
-							content: [
-								{
-									text: `${head}\n${outcome.failures.map((f) => `- ${f}`).join('\n')}`,
-									type: 'text' as const,
-								},
-							],
-							details: { diff: outcome.diff },
-							isError: true,
-							structuredContent,
-						};
-					}
-					return {
-						content: [
-							{
-								text: `replaced ${params.edits.length} block(s) in ${params.path}`,
-								type: 'text' as const,
-							},
-						],
-						details: { diff: outcome.diff },
-						structuredContent,
-					};
-				} catch (error) {
-					return text(`could not edit ${params.path}: ${errText(error)}`, true);
-				}
-			},
-			label: 'Edit',
-			name: 'edit',
-			outputSchema: editOutputSchema,
-			parameters: Type.Object({
-				edits: Type.Array(editItemSchema, {
-					description:
-						'One or more targeted replacements, matched against the original file, not incrementally. Unmatchable edits are skipped and reported while the rest apply.',
-				}),
-				path: Type.String({
-					description: 'Path to the file to edit (relative or absolute).',
-				}),
-			}),
-			renderShell: 'self',
+				'One or more targeted replacements, matched against the original file, not incrementally. Unmatchable edits are skipped and reported while the rest apply.',
 		}),
-	);
-};
+		path: Type.String({ description: 'Path to the file to edit (relative or absolute).' }),
+	}),
+	renderShell: 'self',
+});
+
+// The `delete` tool: registered by `toolFile`.
+export const deleteTool = defineTool({
+	description: 'Delete a file or folder.',
+	async execute(_toolCallId, params) {
+		try {
+			await deletePath(params.path);
+			return { ...text(`File ${params.path} deleted`), structuredContent: params.path };
+		} catch (error) {
+			return text(errText(error), true);
+		}
+	},
+	label: 'Delete',
+	name: 'delete',
+	outputSchema: Type.String({ description: 'The deleted file path' }),
+	parameters: Type.Object({ path: Type.String({ description: 'File path to delete' }) }),
+});
